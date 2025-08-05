@@ -1,0 +1,10 @@
+# .coveragerc
+[run]
+branch = True
+source = .
+
+[report]
+omit =
+    test_*.py
+    */__init__.py
+show_missing = True

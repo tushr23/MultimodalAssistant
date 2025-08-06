@@ -1,4 +1,0 @@
-fastapi
-uvicorn==0.35.0
-transformers
-requests

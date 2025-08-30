@@ -342,7 +342,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 👨‍💻 Credits & Contact
 
-**Developed by**: [Tushr Verma]
+**Developed by**: [Tushr Verma](https://github.com/tushr23)
 - **GitHub**: [@tushr23](https://github.com/tushr23)
 - **Email**: tushrverma23@gmail.com
 - **Portfolio**: Python Developer with Generative AI.

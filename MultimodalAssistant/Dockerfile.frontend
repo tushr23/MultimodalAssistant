@@ -1,0 +1,32 @@
+# Lightweight frontend container
+FROM python:3.10-slim
+
+# Install minimal dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash app
+
+# Set up application directory
+WORKDIR /app
+RUN chown -R app:app /app
+
+# Copy and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir requests urllib3
+
+# Copy application code
+COPY --chown=app:app frontend.py .
+
+# Switch to non-root user
+USER app
+
+# Health check for frontend connectivity
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD python -c "import requests; requests.get('${API_URL:-http://backend:8000/health}', timeout=5)" || exit 1
+
+# Run frontend application
+CMD ["python", "frontend.py"]

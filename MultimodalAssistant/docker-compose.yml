@@ -1,0 +1,41 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: multimodal-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - multimodal-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: multimodal-frontend
+    environment:
+      - API_URL=http://backend:8000/v1/vision
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    networks:
+      - multimodal-network
+
+networks:
+  multimodal-network:
+    driver: bridge

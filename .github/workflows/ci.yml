@@ -48,3 +48,4 @@ jobs:
         run: |
           docker build -t multimodal-assistant:latest .
 ""  
+"# Fixed workflow"  

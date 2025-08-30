@@ -47,3 +47,4 @@ jobs:
       - name: Build Docker image
         run: |
           docker build -t multimodal-assistant:latest .
+""  

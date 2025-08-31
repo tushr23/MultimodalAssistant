@@ -21,11 +21,9 @@ Version: 2.0.0
 """
 
 import os
-import sys
 import json
 import time
-from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from datetime import datetime
 
 import streamlit as st
@@ -302,7 +300,7 @@ def render_upload_section():
                     brightness = st.slider("💡 Brightness", 0.5, 2.0, 1.0, 0.1)
                     contrast = st.slider("🌈 Contrast", 0.5, 2.0, 1.0, 0.1)
                     
-                    if brightness != 1.0 or contrast != 1.0:
+                    if abs(brightness - 1.0) > 0.01 or abs(contrast - 1.0) > 0.01:
                         enhanced_image = ImageEnhance.Brightness(image).enhance(brightness)
                         enhanced_image = ImageEnhance.Contrast(enhanced_image).enhance(contrast)
                         st.image(enhanced_image, caption="Enhanced Preview", width=200)

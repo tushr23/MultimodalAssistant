@@ -29,6 +29,8 @@ pytest==7.4.3
 pytest-asyncio==0.21.1
 pytest-cov==4.1.0
 coverage==7.3.2
+flake8==7.0.0
+black==24.3.0
 
 # Optional: Performance monitoring (uncomment if needed)
 # prometheus-client==0.19.0

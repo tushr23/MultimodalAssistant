@@ -1,14 +1,25 @@
 services:
   backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-    container_name: multimodal-backend
+    container_name: genai-backend
+    env_file:
+      - .env
     ports:
       - "8000:8000"
     environment:
-      - PYTHONUNBUFFERED=1
-      - LOG_LEVEL=INFO
+      PYTHONUNBUFFERED: "1"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
+      MODEL_ID: ${MODEL_ID:-HuggingFaceH4/zephyr-7b-beta}
+      # LLM Router configuration (optional)
+      LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
+      LLM_MODEL: ${LLM_MODEL:-openai/gpt-4o-mini}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -19,19 +30,40 @@ services:
     networks:
       - multimodal-network
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: genai-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - multimodal-network
+
   frontend:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile.frontend
-    container_name: multimodal-frontend
+    container_name: genai-frontend
+    env_file:
+      - .env
     ports:
       - "8501:8501"
     environment:
-      - API_URL=http://backend:8000/v1/vision
-      - PYTHONUNBUFFERED=1
+      API_URL: http://backend:8000
+      PYTHONUNBUFFERED: "1"
     depends_on:
       backend:
         condition: service_healthy
+      ollama:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
       interval: 30s
@@ -45,3 +77,6 @@ services:
 networks:
   multimodal-network:
     driver: bridge
+
+volumes:
+  ollama:

@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: Enterprise CI Pipeline
 
 on:
   push:
@@ -7,221 +7,110 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  lint-and-test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y tesseract-ocr libtesseract-dev
-      
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-      
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-cov flake8 black coverage
-      
-      - name: Run linting
-        run: |
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          black --check . || true
-      
-      - name: Run tests with coverage
-        run: |
-          python -m pytest tests.py --cov=main --cov-report=xml --cov-report=term-missing -v
-        env:
-          PYTHONPATH: .
-      
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report-${{ matrix.python-version }}
-          path: coverage.xml
 
-  docker-backend:
-    runs-on: ubuntu-latest
-    needs: test
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Build backend Docker image
-        run: |
-          docker build -t multimodal-backend:latest -f Dockerfile .
-      
-      - name: Test backend container
-        run: |
-          docker run --name test-backend -d -p 8000:8000 multimodal-backend:latest
-          echo "Waiting for backend to start..."
-          sleep 45
-          
-          # Check if container is still running
-          if ! docker ps | grep test-backend; then
-            echo "Container failed to start, checking logs:"
-            docker logs test-backend
-            exit 1
-          fi
-          
-          # Test health endpoint with retries
-          for i in {1..5}; do
-            if curl -f --connect-timeout 10 --max-time 30 http://localhost:8000/health; then
-              echo "Health check passed"
-              break
-            fi
-            echo "Health check attempt $i failed, retrying..."
-            sleep 10
-          done
-          
-          # Final health check
-          curl -f --connect-timeout 10 --max-time 30 http://localhost:8000/health || {
-            echo "Final health check failed, container logs:"
-            docker logs test-backend
-            exit 1
-          }
-          
-          docker stop test-backend || true
-          docker rm test-backend || true
+    - uses: actions/checkout@v4
 
-  docker-frontend:
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Build frontend Docker image
-        run: |
-          docker build -t multimodal-frontend:latest -f Dockerfile.frontend .
-      
-      - name: Test frontend container
-        run: |
-          docker run --name test-frontend -d -p 8501:8501 multimodal-frontend:latest
-          echo "Waiting for frontend to start..."
-          sleep 45
-          
-          # Check if container is still running
-          if ! docker ps | grep test-frontend; then
-            echo "Container failed to start, checking logs:"
-            docker logs test-frontend
-            exit 1
-          fi
-          
-          # Test health endpoint with retries
-          for i in {1..5}; do
-            if curl -f --connect-timeout 10 --max-time 30 http://localhost:8501/_stcore/health; then
-              echo "Health check passed"
-              break
-            fi
-            echo "Health check attempt $i failed, retrying..."
-            sleep 10
-          done
-          
-          # Final health check
-          curl -f --connect-timeout 10 --max-time 30 http://localhost:8501/_stcore/health || {
-            echo "Final health check failed, container logs:"
-            docker logs test-frontend
-            exit 1
-          }
-          
-          docker stop test-frontend || true
-          docker rm test-frontend || true
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
 
-  docker-compose:
-    runs-on: ubuntu-latest
-    needs: [docker-backend, docker-frontend]
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Test Docker Compose
-        run: |
-          docker compose up -d --build
-          echo "Waiting for services to start..."
-          sleep 90
-          
-          # Check if containers are running
-          docker compose ps
-          
-          # Test health endpoints with retries
-          echo "Testing backend health..."
-          for i in {1..10}; do
-            if curl -f --connect-timeout 10 --max-time 30 http://localhost:8000/health; then
-              echo "Backend health check passed"
-              break
-            fi
-            echo "Backend health check attempt $i failed, retrying..."
-            sleep 15
-          done
-          
-          echo "Testing frontend health..."
-          for i in {1..10}; do
-            if curl -f --connect-timeout 10 --max-time 30 http://localhost:8501/_stcore/health; then
-              echo "Frontend health check passed"
-              break
-            fi
-            echo "Frontend health check attempt $i failed, retrying..."
-            sleep 15
-          done
-          
-          # Show logs for debugging
-          echo "Backend logs:"
-          docker compose logs backend --tail=20
-          echo "Frontend logs:"
-          docker compose logs frontend --tail=20
-          
-          docker compose down
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+
+    - name: Lint with flake8
+      run: |
+        cd backend
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Format check with black
+      run: |
+        cd backend
+        black --check --diff .
+
+    - name: Test with pytest (100% coverage enforced)
+      env:
+        HUGGINGFACEHUB_API_TOKEN: ${{ secrets.HUGGINGFACEHUB_API_TOKEN || 'test_token' }}
+        API_KEY: test_key_for_ci
+        RATE_LIMIT_REQUESTS: 5
+        REQUEST_SIZE_LIMIT_BYTES: 1024
+      run: |
+        cd backend
+        pytest -v --cov=. --cov-report=term-missing --cov-fail-under=100
 
   security-scan:
     runs-on: ubuntu-latest
-    needs: test
-    permissions:
-      security-events: write
-      actions: read
-      contents: read
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          ignore-unfixed: true
-      
-      - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
+    - uses: actions/checkout@v4
 
-  deploy-staging:
+    - name: Build Docker image
+      run: docker build -t genai-chatbot:${{ github.sha }} ./backend
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'genai-chatbot:${{ github.sha }}'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  docker-build:
     runs-on: ubuntu-latest
-    needs: [docker-compose, security-scan]
-    if: github.ref == 'refs/heads/main'
+    needs: [lint-and-test]
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Deploy to staging
-        run: |
-          echo "🚀 Ready for staging deployment"
-          echo "Backend image: multimodal-backend:latest"
-          echo "Frontend image: multimodal-frontend:latest"
-          echo "Docker Compose: docker-compose.yml"  
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build and smoke test services
+      env:
+        HUGGINGFACEHUB_API_TOKEN: test_token
+      run: |
+        cp .env.example .env
+        sed -i "s|HUGGINGFACEHUB_API_TOKEN=REPLACE_WITH_YOUR_TOKEN|HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}|g" .env
+        echo "MODEL_ID=${MODEL_ID:-HuggingFaceH4/zephyr-7b-beta}" >> .env
+        docker-compose build
+        docker-compose up -d
+        sleep 15
+
+        # Health checks
+        curl -f http://localhost:8000/health || exit 1
+        curl -f http://localhost:8000/metrics || exit 1
+        curl -f http://localhost:8000/readiness || echo "Expected 503 for missing real token"
+
+        # API smoke test
+        curl -X POST http://localhost:8000/v1/chat \
+          -H "Content-Type: application/json" \
+          -d '{"messages": [{"role": "user", "content": "test"}]}' || echo "Expected generation failure"
+
+        docker-compose down
+
+    - name: Build multi-platform images (on main)
+      if: github.ref == 'refs/heads/main'
+      run: |
+        docker buildx build --platform linux/amd64,linux/arm64 -t genai-chatbot:latest ./backend
+        docker buildx build --platform linux/amd64,linux/arm64 -t genai-chatbot-frontend:latest ./frontend

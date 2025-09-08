@@ -630,3 +630,30 @@ def test_metrics_trim_response_times_to_last_1000():
 
     with metrics_lock:
         assert len(metrics["response_time_seconds"]) == 1000
+
+
+def test_build_prompt_extremely_small_char_limit():
+    """Test edge case where char_limit is smaller than assistant_suffix."""
+    import os
+    from main import build_prompt, ChatMessage
+    
+    # Set an extremely small character limit
+    os.environ["INPUT_CHAR_LIMIT"] = "5"  # Much smaller than "<|assistant|>\n" (15 chars)
+    
+    messages = [
+        ChatMessage(role="system", content="You are a helpful assistant."),
+        ChatMessage(role="user", content="This is a very long message that will exceed the char limit"),
+        ChatMessage(role="assistant", content="Previous response"),
+        ChatMessage(role="user", content="Another long message"),
+    ]
+    
+    prompt = build_prompt(messages)
+    
+    # When keep_chars is 0 or negative, it should use assistant_suffix[-char_limit:]
+    # This covers the line: prompt = prefix[-keep_chars:] + assistant_suffix if keep_chars else assistant_suffix[-char_limit:]
+    assert len(prompt) <= 5
+    # The assistant_suffix is "<|assistant|>\n" (15 chars), so [-5:] would be "nt|>\n"
+    assert prompt == "nt|>\n"
+    
+    # Clean up
+    os.environ["INPUT_CHAR_LIMIT"] = "8000"

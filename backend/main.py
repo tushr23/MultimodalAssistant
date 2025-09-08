@@ -313,7 +313,7 @@ def _try_anthropic_provider(
     if not api_key:
         return None
     try:
-        import anthropic  # type: ignore
+        import anthropic  # type: ignore  # pragma: no cover - import only
 
         client = anthropic.Anthropic(api_key=api_key)
         # Convert messages to Anthropic format

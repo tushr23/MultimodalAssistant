@@ -253,9 +253,7 @@ def test_auth_dependency_via_chat(monkeypatch):
     assert r.status_code == 401
 
     # Wrong token -> 401
-    r2 = client.post(
-        "/v1/chat", json=_valid_chat_body(), headers={"Authorization": "Bearer nope"}
-    )
+    r2 = client.post("/v1/chat", json=_valid_chat_body(), headers={"Authorization": "Bearer nope"})
     assert r2.status_code == 401
 
 
@@ -470,25 +468,19 @@ def test_llm_router_explicit_providers_openai_openrouter_groq(monkeypatch):
     # openai branch
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("OPENAI_API_KEY", "k")
-    out_openai = llm_router_chat(
-        [ChatMessage(role="user", content="hi")], None, 0.1, 0.9, 10
-    )
+    out_openai = llm_router_chat([ChatMessage(role="user", content="hi")], None, 0.1, 0.9, 10)
     assert out_openai == "OPENAI-OK"
 
     # openrouter branch
     monkeypatch.setenv("LLM_PROVIDER", "openrouter")
     monkeypatch.setenv("OPENROUTER_API_KEY", "k")
-    out_or = llm_router_chat(
-        [ChatMessage(role="user", content="hi")], None, 0.1, 0.9, 10
-    )
+    out_or = llm_router_chat([ChatMessage(role="user", content="hi")], None, 0.1, 0.9, 10)
     assert out_or == "OPENAI-OK"
 
     # groq branch
     monkeypatch.setenv("LLM_PROVIDER", "groq")
     monkeypatch.setenv("GROQ_API_KEY", "k")
-    out_groq = llm_router_chat(
-        [ChatMessage(role="user", content="hi")], None, 0.1, 0.9, 10
-    )
+    out_groq = llm_router_chat([ChatMessage(role="user", content="hi")], None, 0.1, 0.9, 10)
     assert out_groq == "OPENAI-OK"
 
 
@@ -532,17 +524,17 @@ def test_llm_router_all_providers_fail_raises(monkeypatch):
     monkeypatch.setattr("main.get_client", raise_get_client)
 
     with pytest.raises(RuntimeError):
-        llm_router_chat(
-            [ChatMessage(role="user", content="x")], None, 0.1, 0.9, 10
-        )
+        llm_router_chat([ChatMessage(role="user", content="x")], None, 0.1, 0.9, 10)
 
 
 def test_split_system_and_messages_extracts_system():
-    system, msgs = _split_system_and_messages([
-        ChatMessage(role="system", content="SYS"),
-        ChatMessage(role="user", content="U1"),
-        ChatMessage(role="assistant", content="A1"),
-    ])
+    system, msgs = _split_system_and_messages(
+        [
+            ChatMessage(role="system", content="SYS"),
+            ChatMessage(role="user", content="U1"),
+            ChatMessage(role="assistant", content="A1"),
+        ]
+    )
     assert system == "SYS"
     assert msgs[0]["role"] == "user" and msgs[1]["role"] == "assistant"
 
@@ -561,10 +553,12 @@ def test_llm_router_anthropic_success(monkeypatch):
             @staticmethod
             def create(**kwargs):  # noqa: ARG002
                 # Mix object and dict forms to hit both branches
-                return types.SimpleNamespace(content=[
-                    DummyContent("ANTH-OK"),
-                    {"type": "text", "text": "MORE"},
-                ])
+                return types.SimpleNamespace(
+                    content=[
+                        DummyContent("ANTH-OK"),
+                        {"type": "text", "text": "MORE"},
+                    ]
+                )
 
         def __init__(self, api_key=None):  # noqa: ARG002
             pass

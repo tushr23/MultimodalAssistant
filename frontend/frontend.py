@@ -24,14 +24,15 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
-        'Get Help': 'https://github.com/tushr23/MultimodalAssistant',
-        'Report a bug': 'https://github.com/tushr23/MultimodalAssistant/issues',
-        'About': "# GenAI Chatbot\nBuilt by **Tushr Verma**\n\nA professional AI chat interface powered by HuggingFace models."
-    }
+        "Get Help": "https://github.com/tushr23/MultimodalAssistant",
+        "Report a bug": "https://github.com/tushr23/MultimodalAssistant/issues",
+        "About": "# GenAI Chatbot\nBuilt by **Tushr Verma**\n\nA professional AI chat interface powered by HuggingFace models.",
+    },
 )
 
 # Custom CSS for better styling
-st.markdown("""
+st.markdown(
+    """
 <style>
     .main-header {
         text-align: center;
@@ -87,7 +88,9 @@ st.markdown("""
         display: none !important;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
 def make_session() -> requests.Session:
@@ -125,17 +128,20 @@ if "system_status" not in st.session_state:
 def main():
     """Main application interface with enhanced UI."""
     # Header
-    st.markdown("""
+    st.markdown(
+        """
     <div class="main-header">
         <h1>🤖 GenAI Chatbot</h1>
         <div class="author-badge">Built by Tushr Verma</div>
     </div>
-    """, unsafe_allow_html=True)
-    
+    """,
+        unsafe_allow_html=True,
+    )
+
     # System status in sidebar
     with st.sidebar:
         st.markdown("### 🔧 System Controls")
-        
+
         # Health status check
         health_status = check_health()
         if health_status.get("status") == "healthy":
@@ -143,9 +149,9 @@ def main():
             st.markdown(f"**Uptime:** {health_status.get('uptime', 'Unknown')}")
         else:
             st.markdown('<p class="status-error">❌ System Offline</p>', unsafe_allow_html=True)
-        
+
         st.divider()
-        
+
         # Model parameters
         st.markdown("### ⚙️ Model Settings")
         temperature = st.slider(
@@ -154,96 +160,88 @@ def main():
             max_value=2.0,
             value=0.8,
             step=0.1,
-            help="Higher values make responses more creative but less focused"
+            help="Higher values make responses more creative but less focused",
         )
-        
+
         top_p = st.slider(
-            "Top-p",
-            min_value=0.1,
-            max_value=1.0,
-            value=0.9,
-            step=0.05,
-            help="Controls diversity via nucleus sampling"
+            "Top-p", min_value=0.1, max_value=1.0, value=0.9, step=0.05, help="Controls diversity via nucleus sampling"
         )
-        
+
         max_tokens = st.slider(
             "Max Tokens",
             min_value=50,
             max_value=1024,  # Match backend validation limit
-            value=512,       # Use a safer default value
+            value=512,  # Use a safer default value
             step=50,
-            help="Maximum length of response (limited to 1024 by backend)"
+            help="Maximum length of response (limited to 1024 by backend)",
         )
-        
+
         st.divider()
-        
+
         # Model information
         llm = health_status.get("llm_router", {}) if isinstance(health_status, dict) else {}
         provider = llm.get("provider", "unknown")
         model = llm.get("model", "unknown")
         configured = llm.get("provider_configured", False)
-        st.markdown(f"""
+        st.markdown(
+            f"""
         <div class="model-info">
             <strong>🧠 AI Router</strong><br/>
             Provider: <code>{provider}</code><br/>
             Model: <code>{model}</code><br/>
             <small>{'Keys configured' if configured else 'No keys detected - using Ollama (local) then HF fallback'}</small>
         </div>
-        """, unsafe_allow_html=True)
-        
+        """,
+            unsafe_allow_html=True,
+        )
+
         # Clear chat button
         if st.button("🗑️ Clear Chat", type="secondary", use_container_width=True):
             st.session_state.messages = []
             st.rerun()
-        
+
     # Main chat interface
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-    
+
     # Display chat messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-    
+
     # Chat input
     if prompt := st.chat_input("Ask me anything..."):
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
-        
+
         # Generate assistant response
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
             full_response = ""
-            
+
             try:
                 with st.spinner("Thinking..."):
                     start_time = time.time()
-                    
+
                     # Create messages list in the format expected by backend
                     messages_for_api = []
                     for msg in st.session_state.messages:
-                        messages_for_api.append({
-                            "role": msg["role"],
-                            "content": msg["content"]
-                        })
-                    
+                        messages_for_api.append({"role": msg["role"], "content": msg["content"]})
+
                     # Add the current user message
-                    messages_for_api.append({
-                        "role": "user", 
-                        "content": prompt
-                    })
-                    
+                    messages_for_api.append({"role": "user", "content": prompt})
+
                     payload = {
                         "messages": messages_for_api,  # Use messages (plural)
                         "temperature": temperature,
                         "top_p": top_p,
-                        "max_new_tokens": max_tokens  # Use max_new_tokens
+                        "max_new_tokens": max_tokens,  # Use max_new_tokens
                     }
-                    
+
                     # Make API request with enhanced error handling
                     response = session.post(CHAT_URL, json=payload, timeout=30)
-                    
+
                     if response.status_code == 200:
                         result = response.json()
                         # Extract the assistant's message from the response
@@ -263,7 +261,7 @@ def main():
                     else:
                         full_response = f"❌ Error: {response.status_code} - {response.text}"
                         message_placeholder.markdown(full_response)
-                        
+
             except requests.exceptions.Timeout:
                 full_response = "⏱️ Request timed out. The AI might be processing a complex query. Please try again."
                 message_placeholder.markdown(full_response)
@@ -273,19 +271,22 @@ def main():
             except Exception as e:
                 full_response = f"💥 Unexpected error: {str(e)}"
                 message_placeholder.markdown(full_response)
-            
+
         # Add assistant response to chat history
         st.session_state.messages.append({"role": "assistant", "content": full_response})
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
     # Footer
-    st.markdown("""
+    st.markdown(
+        """
     <div class="footer">
         <p>⚡ Powered by HuggingFace Models | 🚀 Built with FastAPI & Streamlit</p>
         <p><strong>Created by Tushr Verma</strong> | Professional AI Chat Interface</p>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 
 if __name__ == "__main__":

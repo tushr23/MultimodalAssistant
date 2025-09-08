@@ -22,7 +22,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field, field_validator
-import httpx
 
 # We'll use real LLM providers instead of scripted responses
 
@@ -34,7 +33,7 @@ DEFAULT_LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "ollama").lower()
 DEFAULT_LLM_MODEL = os.environ.get(
     "LLM_MODEL",
     # Good default for local Ollama without keys
-    "qwen2.5:7b-instruct"
+    "qwen2.5:7b-instruct",
 )
 MAX_NEW_TOKENS = int(os.environ.get("MAX_NEW_TOKENS", "512"))
 TEMPERATURE = float(os.environ.get("TEMPERATURE", "0.7"))
@@ -107,7 +106,7 @@ def check_rate_limit(request: Request):
     """Basic rate limiting by IP address."""
     rate_limit_requests = int(os.environ.get("RATE_LIMIT_REQUESTS", "10"))
     rate_limit_window = int(os.environ.get("RATE_LIMIT_WINDOW", "60"))
-    
+
     if rate_limit_requests <= 0:
         return  # Disabled
 
@@ -248,6 +247,7 @@ def get_client(model_id: Optional[str] = None) -> Any:
 
     return InferenceClient(model=mid, token=token, timeout=timeout_seconds)
 
+
 def _split_system_and_messages(messages: List[ChatMessage]) -> Tuple[Optional[str], List[Dict[str, str]]]:
     """Extract a system prompt if present and return OpenAI-style messages."""
     system: Optional[str] = None
@@ -258,6 +258,187 @@ def _split_system_and_messages(messages: List[ChatMessage]) -> Tuple[Optional[st
         else:
             transformed.append({"role": m.role, "content": m.content})
     return system, transformed
+
+
+def _openai_style_chat(
+    base_url: Optional[str],
+    api_key_env: Optional[str],
+    target_model: str,
+    system_prompt: str,
+    chat_messages: List[Dict[str, str]],
+    temperature: float,
+    top_p: float,
+    max_new_tokens: int,
+    require_key: bool = True,
+) -> Optional[str]:
+    """Helper for OpenAI-compatible providers (OpenAI/OpenRouter/Groq/Ollama)."""
+    api_key = os.environ.get(api_key_env) if api_key_env else None
+    if require_key and not api_key:
+        return None
+    try:
+        from openai import OpenAI  # type: ignore
+    except Exception as e:  # pragma: no cover
+        logger.warning(f"OpenAI client not available: {e}")
+        return None
+    try:
+        # For keyless providers (ollama), pass a dummy key
+        if base_url:
+            client = OpenAI(api_key=api_key or "ollama", base_url=base_url)
+        else:
+            client = OpenAI(api_key=api_key)
+        payload_messages = [{"role": "system", "content": system_prompt}] + chat_messages
+        resp = client.chat.completions.create(
+            model=target_model,
+            messages=payload_messages,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_new_tokens,
+        )
+        return (resp.choices[0].message.content or "").strip()
+    except Exception as e:  # pragma: no cover - network/provider dependent
+        logger.warning(f"OpenAI-style provider failed ({base_url or 'openai'}): {e}")
+        return None
+
+
+def _try_anthropic_provider(
+    target_model: str,
+    system_prompt: str,
+    chat_messages: List[Dict[str, str]],
+    temperature: float,
+    top_p: float,
+    max_new_tokens: int,
+) -> Optional[str]:
+    """Try Anthropic provider."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return None
+    try:
+        import anthropic  # type: ignore
+
+        client = anthropic.Anthropic(api_key=api_key)
+        # Convert messages to Anthropic format
+        anth_messages: List[Dict[str, Any]] = []
+        for m in chat_messages:
+            role = m["role"]
+            if role not in ("user", "assistant"):
+                role = "user"
+            anth_messages.append({"role": role, "content": m["content"]})
+        resp = client.messages.create(
+            model=target_model,
+            system=system_prompt,
+            messages=anth_messages,
+            max_tokens=max_new_tokens,
+            temperature=temperature,
+            top_p=top_p,
+        )
+        # Concatenate text parts
+        parts = []
+        for c in resp.content:
+            if getattr(c, "type", None) == "text":
+                parts.append(getattr(c, "text", ""))
+            elif isinstance(c, dict) and c.get("type") == "text":
+                parts.append(c.get("text", ""))
+        return "\n".join([p for p in parts if p]).strip() or ""
+    except Exception as e:  # pragma: no cover - network/provider dependent
+        logger.warning(f"Anthropic provider failed: {e}")
+        return None
+
+
+def _try_huggingface_fallback(
+    messages: List[ChatMessage], temperature: float, top_p: float, max_new_tokens: int
+) -> str:
+    """Final fallback: HuggingFace Inference (prompt-completion style)."""
+    try:
+        client = get_client(model_id=None)
+        prompt = build_prompt(messages)
+        output = client.text_generation(
+            prompt,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            do_sample=True,
+            return_full_text=False,
+        )
+        return output if isinstance(output, str) else str(output)
+    except Exception as e:  # pragma: no cover - defensive fallback
+        logger.error(f"All providers failed: {e}")
+        raise RuntimeError("No LLM provider available or all failed")
+
+
+def _try_explicit_provider(
+    provider: str,
+    target_model: str,
+    system_prompt: str,
+    chat_messages: List[Dict[str, str]],
+    temperature: float,
+    top_p: float,
+    max_new_tokens: int,
+) -> Optional[str]:
+    """Try the explicitly configured provider."""
+    if provider == "openai":
+        return _openai_style_chat(
+            None, "OPENAI_API_KEY", target_model, system_prompt, chat_messages, temperature, top_p, max_new_tokens
+        )
+    elif provider == "openrouter":
+        return _openai_style_chat(
+            "https://openrouter.ai/api/v1",
+            "OPENROUTER_API_KEY",
+            target_model,
+            system_prompt,
+            chat_messages,
+            temperature,
+            top_p,
+            max_new_tokens,
+        )
+    elif provider == "groq":
+        return _openai_style_chat(
+            "https://api.groq.com/openai/v1",
+            "GROQ_API_KEY",
+            target_model,
+            system_prompt,
+            chat_messages,
+            temperature,
+            top_p,
+            max_new_tokens,
+        )
+    elif provider == "anthropic":
+        return _try_anthropic_provider(target_model, system_prompt, chat_messages, temperature, top_p, max_new_tokens)
+    elif provider == "ollama":
+        return _openai_style_chat(
+            "http://ollama:11434/v1",
+            None,
+            target_model,
+            system_prompt,
+            chat_messages,
+            temperature,
+            top_p,
+            max_new_tokens,
+            require_key=False,
+        )
+    return None
+
+
+def _try_fallback_providers(
+    target_model: str,
+    system_prompt: str,
+    chat_messages: List[Dict[str, str]],
+    temperature: float,
+    top_p: float,
+    max_new_tokens: int,
+) -> Optional[str]:
+    """Try fallback providers in order."""
+    for base_url, key_env, require_key in (
+        ("http://ollama:11434/v1", None, False),
+        (None, "OPENAI_API_KEY", True),
+        ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY", True),
+        ("https://api.groq.com/openai/v1", "GROQ_API_KEY", True),
+    ):
+        text = _openai_style_chat(
+            base_url, key_env, target_model, system_prompt, chat_messages, temperature, top_p, max_new_tokens, require_key
+        )
+        if text:
+            return text
+    return None
 
 
 def llm_router_chat(
@@ -278,113 +459,18 @@ def llm_router_chat(
     if not system_prompt:
         system_prompt = "You are a smart, helpful, and concise AI assistant."  # pragma: no cover
 
-    # Helper for OpenAI-compatible providers (OpenAI/OpenRouter/Groq/Ollama)
-    def _openai_style_chat(base_url: Optional[str], api_key_env: Optional[str], require_key: bool = True) -> Optional[str]:
-        api_key = os.environ.get(api_key_env) if api_key_env else None
-        if require_key and not api_key:
-            return None
-        try:
-            from openai import OpenAI  # type: ignore
-        except Exception as e:  # pragma: no cover
-            logger.warning(f"OpenAI client not available: {e}")
-            return None
-        try:
-            # For keyless providers (ollama), pass a dummy key
-            if base_url:
-                client = OpenAI(api_key=api_key or "ollama", base_url=base_url)
-            else:
-                client = OpenAI(api_key=api_key)
-            payload_messages = ([{"role": "system", "content": system_prompt}] + chat_messages)
-            resp = client.chat.completions.create(
-                model=target_model,
-                messages=payload_messages,
-                temperature=temperature,
-                top_p=top_p,
-                max_tokens=max_new_tokens,
-            )
-            return (resp.choices[0].message.content or "").strip()
-        except Exception as e:  # pragma: no cover - network/provider dependent
-            logger.warning(f"OpenAI-style provider failed ({base_url or 'openai'}): {e}")
-            return None
+    # 1) Try explicit provider first
+    text = _try_explicit_provider(provider, target_model, system_prompt, chat_messages, temperature, top_p, max_new_tokens)
+    if text:
+        return text
 
-    # 1) Explicit provider routing
-    if provider == "openai":
-        text = _openai_style_chat(None, "OPENAI_API_KEY")
-        if text:
-            return text
-    elif provider == "openrouter":
-        text = _openai_style_chat("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY")
-        if text:
-            return text
-    elif provider == "groq":
-        # groq also offers an OpenAI compatible client via groq python lib, but use OpenAI-style if available
-        text = _openai_style_chat("https://api.groq.com/openai/v1", "GROQ_API_KEY")
-        if text:
-            return text
-    elif provider == "anthropic":
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if api_key:
-            try:
-                import anthropic  # type: ignore
-                client = anthropic.Anthropic(api_key=api_key)
-                # Convert messages to Anthropic format
-                anth_messages: List[Dict[str, Any]] = []
-                for m in chat_messages:
-                    role = m["role"]
-                    if role not in ("user", "assistant"):
-                        role = "user"
-                    anth_messages.append({"role": role, "content": m["content"]})
-                resp = client.messages.create(
-                    model=target_model,
-                    system=system_prompt,
-                    messages=anth_messages,
-                    max_tokens=max_new_tokens,
-                    temperature=temperature,
-                    top_p=top_p,
-                )
-                # Concatenate text parts
-                parts = []
-                for c in resp.content:
-                    if getattr(c, "type", None) == "text":
-                        parts.append(getattr(c, "text", ""))
-                    elif isinstance(c, dict) and c.get("type") == "text":
-                        parts.append(c.get("text", ""))
-                return ("\n".join([p for p in parts if p]).strip() or "")
-            except Exception as e:  # pragma: no cover - network/provider dependent
-                logger.warning(f"Anthropic provider failed: {e}")
-    elif provider == "ollama":
-        # Keyless local provider via OpenAI-compatible API
-        text = _openai_style_chat("http://ollama:11434/v1", None, require_key=False)
-        if text:
-            return text
+    # 2) Try fallback providers
+    text = _try_fallback_providers(target_model, system_prompt, chat_messages, temperature, top_p, max_new_tokens)
+    if text:
+        return text  # pragma: no cover
 
-    # 2) Try other providers opportunistically in a robust order
-    for base_url, key_env, require_key in (
-        ("http://ollama:11434/v1", None, False),
-        (None, "OPENAI_API_KEY", True),
-        ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY", True),
-        ("https://api.groq.com/openai/v1", "GROQ_API_KEY", True),
-    ):
-        text = _openai_style_chat(base_url, key_env, require_key=require_key)
-        if text:
-            return text  # pragma: no cover
-
-    # 3) Final fallback: HuggingFace Inference (prompt-completion style)
-    try:
-        client = get_client(model_id=None)
-        prompt = build_prompt(messages)
-        output = client.text_generation(
-            prompt,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            do_sample=True,
-            return_full_text=False,
-        )
-        return output if isinstance(output, str) else str(output)
-    except Exception as e:  # pragma: no cover - defensive fallback
-        logger.error(f"All providers failed: {e}")
-        raise RuntimeError("No LLM provider available or all failed")
+    # 3) Final fallback: HuggingFace Inference
+    return _try_huggingface_fallback(messages, temperature, top_p, max_new_tokens)
 
 
 async def generate_with_retries(client: Any, prompt: str, **kwargs) -> str:
@@ -411,7 +497,7 @@ def build_prompt(messages: List[ChatMessage]) -> str:
     """Convert chat messages to model prompt format."""
     system_msg = "You are a helpful assistant."
     parts: List[str] = []
-    
+
     for msg in messages:
         if msg.role == "system":
             system_msg = msg.content
@@ -419,17 +505,17 @@ def build_prompt(messages: List[ChatMessage]) -> str:
             parts.append(f"<|user|>\n{msg.content}\n")
         elif msg.role == "assistant":
             parts.append(f"<|assistant|>\n{msg.content}\n")
-    
+
     # Build the final prompt
     assistant_suffix = "<|assistant|>\n"
     prompt = f"<|system|>\n{system_msg}\n\n" + "".join(parts) + assistant_suffix
-    
+
     # Truncate if needed
     try:
         char_limit = int(os.environ.get("INPUT_CHAR_LIMIT", "8000"))
     except ValueError:
         char_limit = 8000
-        
+
     if char_limit > 0 and len(prompt) > char_limit:
         # Keep the assistant suffix and trim from the beginning
         keep_chars = max(0, char_limit - len(assistant_suffix))
@@ -450,7 +536,7 @@ def health() -> Dict[str, Any]:
     """Enhanced health check with dependency status."""
     token = os.environ.get("HUGGINGFACEHUB_API_TOKEN")
     status = "healthy" if token else "degraded"
-    
+
     rate_limit_requests = int(os.environ.get("RATE_LIMIT_REQUESTS", "10"))
     api_key = os.environ.get("API_KEY")
     # LLM Router configuration visibility
@@ -530,7 +616,7 @@ def get_metrics() -> Dict[str, Any]:
             "generation_errors_total": generation_errors_total,
             "timestamp": time.time(),
         }
-    
+
     return {
         "http_requests_total": requests_total,
         "http_requests_by_status": requests_by_status,
@@ -597,4 +683,3 @@ async def chat(
 
     logger.info("Chat completion successful", extra={"request_id": req_id})
     return resp
- 

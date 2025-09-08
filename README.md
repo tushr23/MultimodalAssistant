@@ -1,4 +1,4 @@
-# 🤖 Enterprise AI Assistant Platform
+# 🤖 SaaS GenAI Chatbot
 
 [![Python](https://img.shields.io/badge/Python-3.12+-3776ab.svg?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Latest-009688.svg?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -48,8 +48,8 @@ Built from the ground up to demonstrate modern software engineering practices in
 **Get running in 30 seconds:**
 
 ```bash
-git clone https://github.com/tushr23/MultimodalAssistant.git
-cd MultimodalAssistant
+git clone https://github.com/tushr23/GenAI-Chatbot-SaaS.git
+cd GenAI-Chatbot-SaaS
 
 # Option 1: Run locally with Ollama (no API keys needed)
 docker compose up --build
@@ -269,7 +269,7 @@ docker compose logs -f
 ## 📁 **Project Structure**
 
 ```
-MultimodalAssistant/
+GenAI-Chatbot-SaaS/
 ├── 🔧 backend/                     # FastAPI Backend Service
 │   ├── 🚀 main.py                  # Core application & LLM router
 │   ├── 🧪 test_main.py             # Comprehensive test suite (26 tests, 100% coverage)
@@ -447,8 +447,8 @@ llm_provider_health{provider="openai"}
 **For Developers:**
 ```bash
 # 1. Fork and clone
-git clone https://github.com/yourusername/MultimodalAssistant.git
-cd MultimodalAssistant
+git clone https://github.com/yourusername/GenAI-Chatbot-SaaS.git
+cd GenAI-Chatbot-SaaS
 
 # 2. Set up development environment
 python -m venv venv
@@ -517,7 +517,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ⭐ **Star this repo** if you found it helpful!
 
-[📖 Documentation](https://github.com/tushr23/MultimodalAssistant) • [🐛 Report Bug](https://github.com/tushr23/MultimodalAssistant/issues) • [💡 Request Feature](https://github.com/tushr23/MultimodalAssistant/discussions)
+[📖 Documentation](https://github.com/tushr23/GenAI-Chatbot-SaaS) • [🐛 Report Bug](https://github.com/tushr23/GenAI-Chatbot-SaaS/issues) • [💡 Request Feature](https://github.com/tushr23/GenAI-Chatbot-SaaS/discussions)
 
 **Built with ❤️ for the AI community**
 

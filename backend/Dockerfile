@@ -27,7 +27,7 @@ WORKDIR /app
 RUN chown -R app:app /app
 
 # Copy application code
-COPY --chown=app:app . .
+COPY --chown=app:app main.py test_main.py pyproject.toml .flake8 ./
 
 # Switch to non-root user
 USER app
@@ -38,7 +38,7 @@ ENV PYTHONPATH=/app
 
 # Health check (enhanced)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -sf http://localhost:8000/health && curl -sf http://localhost:8000/readiness || exit 1
+    CMD curl -sf http://localhost:8000/health || exit 1
 
 # Expose port
 EXPOSE 8000

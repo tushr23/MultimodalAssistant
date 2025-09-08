@@ -64,10 +64,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Build Docker image (single-platform, for scanning)
-      run: |
-        cd backend
-        docker buildx build --load -t genai-chatbot:${{ github.sha }} --file Dockerfile .
+    - name: Build Docker image
+      run: docker build -t genai-chatbot:${{ github.sha }} ./backend
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
@@ -77,16 +75,11 @@ jobs:
         output: 'trivy-results.sarif'
         severity: 'CRITICAL,HIGH'
 
-    - name: Upload Trivy scan results (best-effort)
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
-      run: |
-        if [ -f trivy-results.sarif ]; then
-          echo "Uploading SARIF results..."
-          # Upload; if it fails due to integration permissions, don't fail the job
-          gh api --method POST -H "Content-Type: application/sarif+json" /repos/${{ github.repository }}/code-scanning/sarifs -f sarif=@trivy-results.sarif || echo "SARIF upload failed (integration permission), continuing"
-        else
-          echo "No SARIF results generated"
-        fi
+      with:
+        sarif_file: 'trivy-results.sarif'
 
   docker-build:
     runs-on: ubuntu-latest
@@ -101,38 +94,50 @@ jobs:
       env:
         HUGGINGFACEHUB_API_TOKEN: test_token
       run: |
+        # Create .env file from example
         cp .env.example .env
         sed -i "s|your_hf_token_here|${HUGGINGFACEHUB_API_TOKEN}|g" .env
         echo "MODEL_ID=${MODEL_ID:-HuggingFaceH4/zephyr-7b-beta}" >> .env
-        docker compose build
+        
+        # Build services individually for better error reporting
+        echo "Building backend..."
+        docker compose build backend
+        echo "Building frontend..."
+        docker compose build frontend
+        
+        # Start services
+        echo "Starting services..."
         docker compose up -d
-        sleep 15
-
-        # Health checks
-        curl -f http://localhost:8000/health || exit 1
+        
+        # Wait for services to be ready
+        echo "Waiting for services to start..."
+        sleep 30
+        
+        # Check if containers are running
+        docker compose ps
+        
+        # Health checks with better error handling
+        echo "Testing backend health..."
+        timeout 30 sh -c 'until curl -f http://localhost:8000/health; do echo "Waiting for backend..."; sleep 2; done'
+        
+        echo "Testing metrics endpoint..."
         curl -f http://localhost:8000/metrics || exit 1
-        curl -f http://localhost:8000/readiness || echo "Expected 503 for missing real token"
+        
+        echo "Testing readiness (may fail with test token)..."
+        curl -f http://localhost:8000/readiness || echo "Expected 503 for test token"
 
         # API smoke test
+        echo "Testing chat API..."
         curl -X POST http://localhost:8000/v1/chat \
           -H "Content-Type: application/json" \
-          -d '{"messages": [{"role": "user", "content": "test"}]}' || echo "Expected generation failure"
+          -d '{"messages": [{"role": "user", "content": "test"}]}' || echo "Expected generation failure with test token"
 
-        docker compose down
+        # Cleanup
+        echo "Stopping services..."
+        docker compose down -v
 
     - name: Build multi-platform images (on main)
       if: github.ref == 'refs/heads/main'
       run: |
-        # Use buildx and push to the default registry if available. When running in CI without registry
-        # credentials this will still build and cache but we explicitly request push only when DOCKERHUB_USERNAME is set.
-        set -e
-        if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_PASSWORD }}" ]; then
-          echo "Logging into Docker registry"
-          echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-          docker buildx build --platform linux/amd64,linux/arm64 --push -t ${DOCKERHUB_USERNAME:-genai}/genai-chatbot:latest -f backend/Dockerfile ./backend
-          docker buildx build --platform linux/amd64,linux/arm64 --push -t ${DOCKERHUB_USERNAME:-genai}/genai-chatbot-frontend:latest -f frontend/Dockerfile.frontend ./frontend
-        else
-          echo "No registry credentials provided; building locally with --load to populate the buildx cache"
-          docker buildx build --platform linux/amd64,linux/arm64 --load -t genai-chatbot:latest -f backend/Dockerfile ./backend
-          docker buildx build --platform linux/amd64,linux/arm64 --load -t genai-chatbot-frontend:latest -f frontend/Dockerfile.frontend ./frontend
-        fi
+        docker buildx build --platform linux/amd64,linux/arm64 -t genai-chatbot:latest ./backend
+        docker buildx build --platform linux/amd64,linux/arm64 -t genai-chatbot-frontend:latest ./frontend

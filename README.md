@@ -1,4 +1,4 @@
-# 🤖 Enterprise AI Assistant Platform
+# 🤖 SaaS GenAI Chatbot
 
 [![Python](https://img.shields.io/badge/Python-3.12+-3776ab.svg?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Latest-009688.svg?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)

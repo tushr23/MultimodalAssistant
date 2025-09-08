@@ -341,6 +341,20 @@ def test_auth_success_and_chat_runs(monkeypatch):
     assert r.json()["choices"][0]["message"]["content"] == "hi"
 
 
+def test_chat_without_api_key_dependency_skips(monkeypatch):
+    """Covers verify_api_key early return when API_KEY is not set (CI missing line)."""
+    # Ensure no API key is configured
+    monkeypatch.delenv("API_KEY", raising=False)
+    # Make sure rate limit doesn't block and router returns quickly
+    monkeypatch.setenv("RATE_LIMIT_REQUESTS", "10")
+    monkeypatch.setattr("main.llm_router_chat", lambda *a, **k: "ok-no-auth")
+
+    r = client.post("/v1/chat", json=_valid_chat_body())
+    assert r.status_code == 200
+    data = r.json()
+    assert data["choices"][0]["message"]["content"] == "ok-no-auth"
+
+
 def test_llm_router_hf_fallback_and_ollama_openai_paths(monkeypatch):
     # Force provider to an unsupported one to use fallback logic
     monkeypatch.setenv("LLM_PROVIDER", "unknown")

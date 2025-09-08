@@ -379,6 +379,24 @@ def test_llm_router_hf_fallback_and_ollama_openai_paths(monkeypatch):
     )
     assert out == "HF-OK"
 
+
+def test_hf_fallback_non_string_output(monkeypatch):
+    """Cover the branch where HF text_generation returns a non-string object."""
+    # Ensure fallback path is used
+    monkeypatch.setenv("LLM_PROVIDER", "unknown")
+    monkeypatch.setenv("HUGGINGFACEHUB_API_TOKEN", "t")
+
+    class DummyHF:
+        def text_generation(self, prompt, **kwargs):  # noqa: ARG002
+            # Return a non-string value to hit the else branch
+            return {"text": "OK"}
+
+    monkeypatch.setattr("main.get_client", lambda model_id=None: DummyHF())
+
+    out = llm_router_chat([ChatMessage(role="user", content="hi")], None, 0.1, 0.9, 10)
+    # Should stringify the non-string output
+    assert out == str({"text": "OK"})
+
     # Now cover the ollama OpenAI-style path by faking openai client
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
 

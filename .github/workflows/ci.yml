@@ -64,8 +64,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Build Docker image
-      run: docker build -t genai-chatbot:${{ github.sha }} ./backend
+    - name: Build Docker image (single-platform, for scanning)
+      run: |
+        cd backend
+        docker buildx build --load -t genai-chatbot:${{ github.sha }} --file Dockerfile .
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
@@ -75,11 +77,16 @@ jobs:
         output: 'trivy-results.sarif'
         severity: 'CRITICAL,HIGH'
 
-    - name: Upload Trivy scan results
-      uses: github/codeql-action/upload-sarif@v3
+    - name: Upload Trivy scan results (best-effort)
       if: always()
-      with:
-        sarif_file: 'trivy-results.sarif'
+      run: |
+        if [ -f trivy-results.sarif ]; then
+          echo "Uploading SARIF results..."
+          # Upload; if it fails due to integration permissions, don't fail the job
+          gh api --method POST -H "Content-Type: application/sarif+json" /repos/${{ github.repository }}/code-scanning/sarifs -f sarif=@trivy-results.sarif || echo "SARIF upload failed (integration permission), continuing"
+        else
+          echo "No SARIF results generated"
+        fi
 
   docker-build:
     runs-on: ubuntu-latest
@@ -116,5 +123,16 @@ jobs:
     - name: Build multi-platform images (on main)
       if: github.ref == 'refs/heads/main'
       run: |
-        docker buildx build --platform linux/amd64,linux/arm64 -t genai-chatbot:latest ./backend
-        docker buildx build --platform linux/amd64,linux/arm64 -t genai-chatbot-frontend:latest ./frontend
+        # Use buildx and push to the default registry if available. When running in CI without registry
+        # credentials this will still build and cache but we explicitly request push only when DOCKERHUB_USERNAME is set.
+        set -e
+        if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_PASSWORD }}" ]; then
+          echo "Logging into Docker registry"
+          echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          docker buildx build --platform linux/amd64,linux/arm64 --push -t ${DOCKERHUB_USERNAME:-genai}/genai-chatbot:latest -f backend/Dockerfile ./backend
+          docker buildx build --platform linux/amd64,linux/arm64 --push -t ${DOCKERHUB_USERNAME:-genai}/genai-chatbot-frontend:latest -f frontend/Dockerfile.frontend ./frontend
+        else
+          echo "No registry credentials provided; building locally with --load to populate the buildx cache"
+          docker buildx build --platform linux/amd64,linux/arm64 --load -t genai-chatbot:latest -f backend/Dockerfile ./backend
+          docker buildx build --platform linux/amd64,linux/arm64 --load -t genai-chatbot-frontend:latest -f frontend/Dockerfile.frontend ./frontend
+        fi

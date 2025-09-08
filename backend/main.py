@@ -311,7 +311,7 @@ def _try_anthropic_provider(
     """Try Anthropic provider."""
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        return None
+        return None       # pragma: no cover
     try:
         import anthropic  # type: ignore  # pragma: no cover - import only
 

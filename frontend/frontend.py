@@ -5,7 +5,7 @@ Built by Tushr Verma - Advanced AI Chat Interface
 """
 import os
 import time
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 import requests
 import streamlit as st
@@ -26,7 +26,9 @@ st.set_page_config(
     menu_items={
         "Get Help": "https://github.com/tushr23/MultimodalAssistant",
         "Report a bug": "https://github.com/tushr23/MultimodalAssistant/issues",
-        "About": "# GenAI Chatbot\nBuilt by **Tushr Verma**\n\nA professional AI chat interface powered by HuggingFace models.",
+        "About": (
+            "# GenAI Chatbot\nBuilt by **Tushr Verma**\n\nA professional AI chat interface powered by HuggingFace models."
+        ),
     },
 )
 

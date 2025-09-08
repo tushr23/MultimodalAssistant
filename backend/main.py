@@ -344,9 +344,7 @@ def _try_anthropic_provider(
         return None
 
 
-def _try_huggingface_fallback(
-    messages: List[ChatMessage], temperature: float, top_p: float, max_new_tokens: int
-) -> str:
+def _try_huggingface_fallback(messages: List[ChatMessage], temperature: float, top_p: float, max_new_tokens: int) -> str:
     """Final fallback: HuggingFace Inference (prompt-completion style)."""
     try:
         client = get_client(model_id=None)

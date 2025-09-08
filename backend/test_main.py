@@ -494,6 +494,39 @@ def test_llm_router_explicit_providers_openai_openrouter_groq(monkeypatch):
     assert out_groq == "OPENAI-OK"
 
 
+def test_llm_router_explicit_provider_ollama(monkeypatch):
+    """Covers the explicit 'ollama' provider branch which uses OpenAI-compatible client without a key."""
+
+    class DummyOpenAIChatChoices:
+        def __init__(self, text):
+            self.message = types.SimpleNamespace(content=text)
+
+    class DummyOpenAIChat:
+        def __init__(self, text):
+            self.choices = [DummyOpenAIChatChoices(text)]
+
+    class DummyOpenAIClient:
+        class chat:
+            class completions:
+                @staticmethod
+                def create(model, messages, temperature, top_p, max_tokens):  # noqa: ARG002
+                    assert isinstance(messages, list) and len(messages) >= 2
+                    return DummyOpenAIChat("OLLAMA-OK")
+
+        def __init__(self, api_key=None, base_url=None):  # noqa: ARG002
+            # Explicit provider should pass api_key=None and base_url="http://ollama:11434/v1"
+            pass
+
+    openai_mod = types.SimpleNamespace(OpenAI=DummyOpenAIClient)
+    monkeypatch.setitem(sys.modules, "openai", openai_mod)
+
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    # Ensure HF token presence/absence doesn't matter; explicit provider should return before fallback
+    monkeypatch.delenv("HUGGINGFACEHUB_API_TOKEN", raising=False)
+    out = llm_router_chat([ChatMessage(role="user", content="hi")], None, 0.1, 0.9, 10)
+    assert out == "OLLAMA-OK"
+
+
 def test_llm_router_all_providers_fail_raises(monkeypatch):
     # Force all providers to fail and HF to raise
     monkeypatch.setenv("LLM_PROVIDER", "unknown")

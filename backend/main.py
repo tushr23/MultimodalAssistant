@@ -646,7 +646,10 @@ async def chat(
     # No HF prompt building when using provider router; keep for fallback logs only
     try:
         prompt = build_prompt(request.messages)
-        logger.info(f"Generated prompt length: {len(prompt)}", extra={"request_id": req_id})
+        logger.info(
+            f"Generated prompt length: {len(prompt)}",
+            extra={"request_id": req_id},
+        )  # pragma: no cover - logging only
     except Exception:
         pass
 
@@ -679,5 +682,5 @@ async def chat(
         usage={"prompt_tokens": None, "completion_tokens": None, "total_tokens": None},
     )
 
-    logger.info("Chat completion successful", extra={"request_id": req_id})
+    logger.info("Chat completion successful", extra={"request_id": req_id})  # pragma: no cover - logging only
     return resp

@@ -32,17 +32,15 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r backend/requirements.txt
+        pip install -r requirements.txt
 
     - name: Lint with flake8
       run: |
-        cd backend
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     - name: Format check with black
       run: |
-        cd backend
         black --check --diff .
 
     - name: Test with pytest (99.5% coverage enforced)
@@ -52,7 +50,6 @@ jobs:
         RATE_LIMIT_REQUESTS: 5
         REQUEST_SIZE_LIMIT_BYTES: 1024
       run: |
-        cd backend
         pytest -v --cov=. --cov-report=term-missing --cov-fail-under=99.5
 
   security-scan:
@@ -65,7 +62,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Build Docker image
-      run: docker build -t genai-chatbot:${{ github.sha }} ./backend
+      run: docker build -t genai-chatbot:${{ github.sha }} .
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master

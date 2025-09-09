@@ -12,6 +12,10 @@ import time
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from PIL import Image
+
+# Set testing mode before importing main
+os.environ['TESTING_MODE'] = 'true'
+
 from main import app, MAX_FILE_SIZE, ALLOWED_CONTENT_TYPES
 
 client = TestClient(app)

@@ -135,7 +135,7 @@ def test_tesseract_not_installed(mock_ocr):
     )
     assert response.status_code == 200
     data = response.json()
-    assert "OCR unavailable" in data["ocr_text"] or "Tesseract not installed" in data["ocr_text"]
+    assert data["ocr_text"] == "OCR unavailable (Tesseract not installed)"
 
 
 @patch("main.pytesseract.image_to_string")
@@ -234,7 +234,7 @@ def test_ocr_generic_error(mock_ocr):
     )
     assert response.status_code == 200
     data = response.json()
-    assert "OCR processing unavailable" in data["ocr_text"]
+    assert data["ocr_text"] == "OCR processing unavailable"
 
 
 def test_lines_150_160_ocr_branches_verification():
@@ -264,7 +264,22 @@ def test_lines_150_160_ocr_branches_execution(mock_ocr):
     )
     assert response.status_code == 200
     data = response.json()
-    assert "OCR unavailable (Tesseract not installed)" in data["ocr_text"] or "OCR processing unavailable" in data["ocr_text"]
+    assert data["ocr_text"] == "OCR processing unavailable"
+
+
+@patch("main.pytesseract.image_to_string")
+def test_tesseract_uppercase_error(mock_ocr):
+    """Test Tesseract error with uppercase"""
+    mock_ocr.side_effect = Exception("Tesseract is not installed")
+    test_image = create_test_image()
+    response = client.post(
+        "/v1/vision",
+        files={"image": ("test.jpg", test_image, "image/jpeg")},
+        data={"prompt": "test"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ocr_text"] == "OCR unavailable (Tesseract not installed)"
 
 
 if __name__ == "__main__":

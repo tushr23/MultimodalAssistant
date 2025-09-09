@@ -39,7 +39,9 @@ from urllib3.util.retry import Retry
 # ====================================
 
 # API Configuration
-API_BASE_URL = os.environ.get("API_URL", "http://localhost:8000").replace("/v1/vision", "")
+API_BASE_URL = os.environ.get("API_URL", "http://localhost:8000").replace(
+    "/v1/vision", ""
+)
 API_VISION_URL = f"{API_BASE_URL}/v1/vision"
 API_HEALTH_URL = f"{API_BASE_URL}/health"
 
@@ -122,14 +124,18 @@ class MultimodalClient:
         except Exception as e:
             return {"status": "error", "response_time": None, "error": str(e)}
 
-    def analyze_image(self, image_bytes: bytes, filename: str, prompt: str) -> Dict[str, Any]:
+    def analyze_image(
+        self, image_bytes: bytes, filename: str, prompt: str
+    ) -> Dict[str, Any]:
         """Send image for AI analysis with comprehensive error handling"""
         try:
             files = {"image": (filename, image_bytes, "image/jpeg")}
             data = {"prompt": prompt}
 
             start_time = time.time()
-            response = self.session.post(self.base_url, files=files, data=data, timeout=REQUEST_TIMEOUT)
+            response = self.session.post(
+                self.base_url, files=files, data=data, timeout=REQUEST_TIMEOUT
+            )
             processing_time = time.time() - start_time
 
             response.raise_for_status()
@@ -139,16 +145,24 @@ class MultimodalClient:
             return result
 
         except requests.exceptions.Timeout:
-            raise RuntimeError("Request timed out. The server may be processing a large image.")
+            raise RuntimeError(
+                "Request timed out. The server may be processing a large image."
+            )
         except requests.exceptions.ConnectionError:
-            raise RuntimeError("Cannot connect to the API server. Please check if the backend is running.")
+            raise RuntimeError(
+                "Cannot connect to the API server. Please check if the backend is running."
+            )
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 413:
-                raise RuntimeError("Image file is too large. Please use a smaller image.")
+                raise RuntimeError(
+                    "Image file is too large. Please use a smaller image."
+                )
             elif e.response.status_code == 422:
                 raise RuntimeError("Invalid image format or corrupted file.")
             else:
-                raise RuntimeError(f"API error: {e.response.status_code} - {e.response.text}")
+                raise RuntimeError(
+                    f"API error: {e.response.status_code} - {e.response.text}"
+                )
         except Exception as e:
             raise RuntimeError(f"Unexpected error: {str(e)}")
 
@@ -301,7 +315,9 @@ def render_upload_section():
             col1, col2 = st.columns([2, 1])
 
             with col1:
-                st.image(image, caption=f"📁 {uploaded_file.name}", use_column_width=True)
+                st.image(
+                    image, caption=f"📁 {uploaded_file.name}", use_column_width=True
+                )
 
             with col2:
                 st.markdown("#### 📊 Image Details")
@@ -313,8 +329,12 @@ def render_upload_section():
                     contrast = st.slider("🌈 Contrast", 0.5, 2.0, 1.0, 0.1)
 
                     if abs(brightness - 1.0) > 0.01 or abs(contrast - 1.0) > 0.01:
-                        enhanced_image = ImageEnhance.Brightness(image).enhance(brightness)
-                        enhanced_image = ImageEnhance.Contrast(enhanced_image).enhance(contrast)
+                        enhanced_image = ImageEnhance.Brightness(image).enhance(
+                            brightness
+                        )
+                        enhanced_image = ImageEnhance.Contrast(enhanced_image).enhance(
+                            contrast
+                        )
                         st.image(enhanced_image, caption="Enhanced Preview", width=200)
                         image = enhanced_image
 
@@ -346,14 +366,18 @@ def render_analysis_section(image_bytes: bytes, filename: str):
 
     with col2:
         st.markdown("<br>", unsafe_allow_html=True)  # Spacing
-        analyze_button = st.button("🚀 Analyze Image", type="primary", use_container_width=True)
+        analyze_button = st.button(
+            "🚀 Analyze Image", type="primary", use_container_width=True
+        )
 
     if analyze_button:
         if not prompt.strip():
             st.warning("⚠️ Please enter a prompt for analysis")
             return
 
-        with st.spinner("🤖 AI is analyzing your image... This may take a few moments."):
+        with st.spinner(
+            "🤖 AI is analyzing your image... This may take a few moments."
+        ):
             try:
                 # Progress bar simulation
                 progress_bar = st.progress(0)
@@ -396,7 +420,10 @@ def render_analysis_section(image_bytes: bytes, filename: str):
 
 def render_results_section():
     """Render comprehensive analysis results"""
-    if "analysis_result" not in st.session_state or st.session_state.analysis_result is None:
+    if (
+        "analysis_result" not in st.session_state
+        or st.session_state.analysis_result is None
+    ):
         st.info("👆 Upload an image and click 'Analyze' to see results here")
         return
 
@@ -417,7 +444,9 @@ def render_results_section():
     with col1:
         st.metric("📁 File", result.get("filename", "Unknown"))
     with col2:
-        processing_time = result.get("processing_time", result.get("client_processing_time", "N/A"))
+        processing_time = result.get(
+            "processing_time", result.get("client_processing_time", "N/A")
+        )
         st.metric("⏱️ Time", f"{processing_time}s")
     with col3:
         st.metric("🕒 Analyzed", timestamp.strftime("%H:%M:%S"))
@@ -457,7 +486,12 @@ def render_results_section():
             st.metric("🔤 Characters", char_count)
         with col3:
             sentiment = (
-                "Positive" if any(word in caption.lower() for word in ["beautiful", "nice", "good", "great"]) else "Neutral"
+                "Positive"
+                if any(
+                    word in caption.lower()
+                    for word in ["beautiful", "nice", "good", "great"]
+                )
+                else "Neutral"
             )
             st.metric("😊 Tone", sentiment)
 

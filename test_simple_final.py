@@ -246,7 +246,11 @@ def test_lines_150_160_ocr_branches_verification():
     source_text = inspect.getsource(main.vision_endpoint)
 
     # Check for specific patterns that should exist in the OCR handling
-    lines_of_interest = ["tesseract is not installed", "OCR unavailable", "OCR processing unavailable"]
+    lines_of_interest = [
+        "tesseract is not installed",
+        "OCR unavailable",
+        "OCR processing unavailable",
+    ]
 
     for line_pattern in lines_of_interest:
         assert line_pattern in source_text, f"Line pattern '{line_pattern}' not found"
@@ -283,4 +287,12 @@ def test_tesseract_uppercase_error(mock_ocr):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "--cov=main", "--cov-report=term-missing", "--cov-fail-under=100", "-v"])
+    pytest.main(
+        [
+            __file__,
+            "--cov=main",
+            "--cov-report=term-missing",
+            "--cov-fail-under=100",
+            "-v",
+        ]
+    )

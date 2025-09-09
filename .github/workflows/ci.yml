@@ -43,14 +43,15 @@ jobs:
       run: |
         black --check --diff .
 
-    - name: Test with pytest (99.5% coverage enforced)
+    - name: Test with pytest (100% coverage enforced)
       env:
         HUGGINGFACEHUB_API_TOKEN: ${{ secrets.HUGGINGFACEHUB_API_TOKEN || 'test_token' }}
         API_KEY: test_key_for_ci
         RATE_LIMIT_REQUESTS: 5
         REQUEST_SIZE_LIMIT_BYTES: 1024
+        TESTING_MODE: true
       run: |
-        pytest -v --cov=. --cov-report=term-missing --cov-fail-under=99.5
+        pytest -v --cov=main --cov-report=term-missing --cov-fail-under=100
 
   security-scan:
     runs-on: ubuntu-latest

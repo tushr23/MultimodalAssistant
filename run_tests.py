@@ -98,7 +98,12 @@ def run_tests():
     print("Running Multimodal Assistant Tests...")
     print("=" * 50)
 
-    tests = [test_constants, test_app_creation, test_basic_endpoints, test_validation_function]
+    tests = [
+        test_constants,
+        test_app_creation,
+        test_basic_endpoints,
+        test_validation_function,
+    ]
 
     passed = 0
     total = len(tests)

@@ -22,20 +22,22 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 import os
-if os.getenv('TESTING_MODE') != 'true':  # pragma: no cover
+
+if os.getenv("TESTING_MODE") != "true":  # pragma: no cover
     from transformers import BlipProcessor, BlipForConditionalGeneration  # pragma: no cover
     import pytesseract  # pragma: no cover
 else:
     # Mock imports for testing
     from unittest.mock import MagicMock
+
     BlipProcessor = MagicMock()
     BlipForConditionalGeneration = MagicMock()
-    
+
     class MockPytesseract:
         @staticmethod
-        def image_to_string(img, config=''):
+        def image_to_string(img, config=""):
             return "Mock OCR text"
-    
+
     pytesseract = MockPytesseract()
 
 # Constants
@@ -50,9 +52,7 @@ ALLOWED_CONTENT_TYPES = {
 }
 
 # Configure professional logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
@@ -75,8 +75,9 @@ app.add_middleware(
 # Load BLIP model for image captioning/Q&A
 try:
     logger.info("Loading BLIP model...")
-    if os.getenv('TESTING_MODE') == 'true':
+    if os.getenv("TESTING_MODE") == "true":
         from unittest.mock import MagicMock
+
         processor = MagicMock()
         model = MagicMock()
         processor.return_value = {"input_ids": "mocked"}
@@ -98,9 +99,7 @@ async def log_requests(request: Request, call_next):
     start_time = time.time()
     response = await call_next(request)
     process_time = time.time() - start_time
-    logger.info(
-        f"{request.method} {request.url} - {response.status_code} - {process_time:.4f}s"
-    )
+    logger.info(f"{request.method} {request.url} - {response.status_code} - {process_time:.4f}s")
     return response
 
 
@@ -145,9 +144,7 @@ def validate_image(image: UploadFile) -> None:
 @app.post("/v1/vision", tags=["Vision"])
 async def vision_endpoint(
     image: UploadFile = File(..., description="Image file for analysis"),
-    prompt: str = Form(
-        "Describe this image", description="Question or instruction for the AI"
-    ),
+    prompt: str = Form("Describe this image", description="Question or instruction for the AI"),
 ) -> Dict[str, Any]:
     """
     Analyze an image with AI-powered captioning and OCR
@@ -209,9 +206,7 @@ async def vision_endpoint(
             raise HTTPException(status_code=500, detail="AI processing failed")
 
         processing_time = time.time() - start_time
-        logger.info(
-            f"Successfully processed {image.filename} in {processing_time:.2f}s"
-        )
+        logger.info(f"Successfully processed {image.filename} in {processing_time:.2f}s")
 
         return JSONResponse(
             {

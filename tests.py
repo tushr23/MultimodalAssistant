@@ -1,5 +1,16 @@
 """
-Comprehensive Test Suite for Multimodal Assistant API
+Coimport os
+import pytest
+import io
+import shutil
+import time
+from unittest.mock import patch, MagicMock
+from fastapi.testclient import TestClient
+from PIL import Image
+
+# Set testing mode and import main
+os.environ["TESTING_MODE"] = "true"
+from main import app, MAX_FILE_SIZE, ALLOWED_CONTENT_TYPES  # noqa: E402est Suite for Multimodal Assistant API
 ====================================================
 Clean, organized tests achieving 100% coverage with automatic cleanup.
 """
@@ -14,9 +25,9 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 # Set testing mode before importing main
-os.environ['TESTING_MODE'] = 'true'
+os.environ["TESTING_MODE"] = "true"
 
-from main import app, MAX_FILE_SIZE, ALLOWED_CONTENT_TYPES
+from main import app, MAX_FILE_SIZE, ALLOWED_CONTENT_TYPES  # noqa: E402
 
 client = TestClient(app)
 
@@ -242,10 +253,7 @@ class TestErrorHandling:
         )
         assert response.status_code == 200
         data = response.json()
-        assert (
-            "OCR unavailable" in data["ocr_text"]
-            or "Tesseract not installed" in data["ocr_text"]
-        )
+        assert "OCR unavailable" in data["ocr_text"] or "Tesseract not installed" in data["ocr_text"]
 
     @patch("main.pytesseract.image_to_string")
     def test_empty_ocr_result(self, mock_ocr):
@@ -337,9 +345,7 @@ class TestMiddleware:
             response = client.get(endpoint)
             assert response.status_code == 200
             # Middleware adds timing information to logs
-            assert (
-                "process_time" not in response.headers
-            )  # This is logged, not in headers
+            assert "process_time" not in response.headers  # This is logged, not in headers
 
 
 class TestAppConfiguration:
@@ -425,9 +431,7 @@ class TestExtraEdgeCases:
         assert response.status_code == 200
 
         # Also test that OPTIONS is handled (even if it returns 405, middleware still processes it)
-        options_response = client.options(
-            "/", headers={"Origin": "http://localhost:3000"}
-        )
+        options_response = client.options("/", headers={"Origin": "http://localhost:3000"})
         # Accept 405 as valid since OPTIONS might not be explicitly implemented
         assert options_response.status_code in [200, 405, 404]
 
@@ -565,10 +569,7 @@ class TestOCRBranchCoverage:
         assert response.status_code == 200
         data = response.json()
         # Should hit the tesseract-specific branch
-        assert (
-            "OCR unavailable" in data["ocr_text"]
-            or "Tesseract not installed" in data["ocr_text"]
-        )
+        assert "OCR unavailable" in data["ocr_text"] or "Tesseract not installed" in data["ocr_text"]
 
 
 class TestCompleteLineCoverage:
@@ -597,9 +598,7 @@ class TestCompleteLineCoverage:
         ]
 
         for line_pattern in lines_of_interest:
-            assert (
-                line_pattern in source_text
-            ), f"Line pattern '{line_pattern}' not found"
+            assert line_pattern in source_text, f"Line pattern '{line_pattern}' not found"
 
     def test_lines_150_160_ocr_branches_verification(self):
         """Verify the OCR exception handling branches exist (lines 150-160)"""
@@ -636,9 +635,7 @@ class TestCompleteLineCoverage:
             data={"prompt": "test"},
         )
         assert response1.status_code == 200
-        assert (
-            "OCR unavailable (Tesseract not installed)" in response1.json()["ocr_text"]
-        )
+        assert "OCR unavailable (Tesseract not installed)" in response1.json()["ocr_text"]
 
         # Test 2: Generic OCR error (else branch)
         mock_ocr.side_effect = Exception("Some other error")

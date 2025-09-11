@@ -1,5 +1,6 @@
-services:
-  backend:
+services    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFOackend:
     build:
       context: .
       dockerfile: Dockerfile
@@ -9,6 +10,10 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=INFO
+      - DEV_MODE=1
+      - BACKEND_FORCE_REV=2025-09-10-r5-fixed-blip
+    volumes:
+      - ./:/app
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -29,6 +34,9 @@ services:
     environment:
       - API_URL=http://backend:8000/v1/vision
       - PYTHONUNBUFFERED=1
+      - FRONTEND_FORCE_REV=2025-09-10-r1
+    volumes:
+      - ./frontend.py:/app/frontend.py
     depends_on:
       backend:
         condition: service_healthy

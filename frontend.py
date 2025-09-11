@@ -76,6 +76,9 @@ st.set_page_config(
     },
 )
 
+# Build/Deploy revision marker (used to confirm container updated)
+FRONTEND_REVISION = "2025-09-10-r1"
+
 # ====================================
 # CORE CLASSES
 # ====================================
@@ -203,17 +206,11 @@ def validate_image(uploaded_file) -> tuple[bool, str]:
 
 def display_image_info(image: Image.Image) -> None:
     """Display comprehensive image information"""
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric("📐 Dimensions", f"{image.width} × {image.height}")
-    with col2:
-        st.metric("🎨 Mode", image.mode)
-    with col3:
-        file_size = len(image.tobytes()) / 1024
-        st.metric("📊 Size", f"{file_size:.1f} KB")
-    with col4:
-        st.metric("📷 Format", image.format or "Unknown")
+    st.metric("📐 Dimensions", f"{image.width} × {image.height}")
+    st.metric("🎨 Mode", image.mode)
+    file_size = len(image.tobytes()) / 1024
+    st.metric("📊 Size", f"{file_size:.1f} KB")
+    st.metric("📷 Format", image.format or "Unknown")
 
 
 # ====================================
@@ -312,31 +309,28 @@ def render_upload_section():
             uploaded_file.seek(0)
             image = Image.open(uploaded_file)
 
-            col1, col2 = st.columns([2, 1])
+            # Display image without nested columns
+            st.image(
+                image, caption=f"📁 {uploaded_file.name}", use_column_width=True
+            )
 
-            with col1:
-                st.image(
-                    image, caption=f"📁 {uploaded_file.name}", use_column_width=True
-                )
+            st.markdown("#### 📊 Image Details")
+            display_image_info(image)
 
-            with col2:
-                st.markdown("#### 📊 Image Details")
-                display_image_info(image)
+            # Image enhancement options
+            with st.expander("🎨 Image Enhancement"):
+                brightness = st.slider("💡 Brightness", 0.5, 2.0, 1.0, 0.1)
+                contrast = st.slider("🌈 Contrast", 0.5, 2.0, 1.0, 0.1)
 
-                # Image enhancement options
-                with st.expander("🎨 Image Enhancement"):
-                    brightness = st.slider("💡 Brightness", 0.5, 2.0, 1.0, 0.1)
-                    contrast = st.slider("🌈 Contrast", 0.5, 2.0, 1.0, 0.1)
-
-                    if abs(brightness - 1.0) > 0.01 or abs(contrast - 1.0) > 0.01:
-                        enhanced_image = ImageEnhance.Brightness(image).enhance(
-                            brightness
-                        )
-                        enhanced_image = ImageEnhance.Contrast(enhanced_image).enhance(
-                            contrast
-                        )
-                        st.image(enhanced_image, caption="Enhanced Preview", width=200)
-                        image = enhanced_image
+                if abs(brightness - 1.0) > 0.01 or abs(contrast - 1.0) > 0.01:
+                    enhanced_image = ImageEnhance.Brightness(image).enhance(
+                        brightness
+                    )
+                    enhanced_image = ImageEnhance.Contrast(enhanced_image).enhance(
+                        contrast
+                    )
+                    st.image(enhanced_image, caption="Enhanced Preview", width=200)
+                    image = enhanced_image
 
             # Convert to bytes
             uploaded_file.seek(0)
@@ -355,20 +349,16 @@ def render_analysis_section(image_bytes: bytes, filename: str):
     """Render analysis controls and processing"""
     st.markdown("### 🎯 Analysis Configuration")
 
-    col1, col2 = st.columns([3, 1])
+    # Remove nested columns - use vertical layout
+    prompt = st.text_input(
+        "Custom Analysis Prompt",
+        value="Describe this image in detail",
+        help="Ask specific questions about the image content, objects, text, or context",
+    )
 
-    with col1:
-        prompt = st.text_input(
-            "Custom Analysis Prompt",
-            value="Describe this image in detail",
-            help="Ask specific questions about the image content, objects, text, or context",
-        )
-
-    with col2:
-        st.markdown("<br>", unsafe_allow_html=True)  # Spacing
-        analyze_button = st.button(
-            "🚀 Analyze Image", type="primary", use_container_width=True
-        )
+    analyze_button = st.button(
+        "🚀 Analyze Image", type="primary", use_container_width=True
+    )
 
     if analyze_button:
         if not prompt.strip():
@@ -438,62 +428,73 @@ def render_results_section():
 
     st.markdown("### 📋 Analysis Results")
 
-    # Results header with metrics
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric("📁 File", result.get("filename", "Unknown"))
-    with col2:
-        processing_time = result.get(
-            "processing_time", result.get("client_processing_time", "N/A")
-        )
-        st.metric("⏱️ Time", f"{processing_time}s")
-    with col3:
-        st.metric("🕒 Analyzed", timestamp.strftime("%H:%M:%S"))
-    with col4:
-        try:
-            time_val = float(str(processing_time).replace("s", ""))
-            confidence = "High" if time_val < 5 else "Medium"
-        except (ValueError, TypeError):
-            confidence = "Good"
-        st.metric("✨ Quality", confidence)
+    # Results header with metrics - vertical layout to avoid nesting
+    st.metric("📁 File", result.get("filename", "Unknown"))
+    processing_time = result.get(
+        "processing_time", result.get("client_processing_time", "N/A")
+    )
+    st.metric("⏱️ Time", f"{processing_time}s")
+    st.metric("🕒 Analyzed", timestamp.strftime("%H:%M:%S"))
+    try:
+        time_val = float(str(processing_time).replace("s", ""))
+        confidence = "High" if time_val < 5 else "Medium"
+    except (ValueError, TypeError):
+        confidence = "Good"
+    st.metric("✨ Quality", confidence)
 
     # Main results in tabs
     tab1, tab2, tab3 = st.tabs(["🎨 AI Caption", "📝 OCR Text", "💾 Export"])
 
     with tab1:
         st.markdown("#### 🧠 AI-Generated Caption")
-        caption = result.get("caption", "No caption generated")
+        caption = result.get("caption", "No caption available")
 
-        # Display caption in a nice box
-        st.markdown(
-            f"""
-        <div style="background-color: #f0f2f6; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #667eea;">
-            <p style="font-size: 1.1rem; margin: 0; line-height: 1.6;">{caption}</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+        # Professional caption display
+        if caption and len(caption.strip()) > 0 and caption.strip() != "No caption available":
+            # Clean caption display - remove technical prefixes for production
+            clean_caption = caption
+            if clean_caption.startswith("[SIMPLE-") or clean_caption.startswith("[FALLBACK") or clean_caption.startswith("[ULTIMATE_GUARD"):
+                # Extract clean description from technical wrapper
+                bracket_end = clean_caption.find("]")
+                if bracket_end != -1:
+                    clean_caption = clean_caption[bracket_end + 1:].strip()
+            
+            # Display the caption in a professional styled box
+            st.markdown(
+                f"""
+            <div style="background-color: #ffffff; padding: 2rem; border-radius: 12px; border: 1px solid #e1e5e9; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <p style="font-size: 1.2rem; margin: 0; line-height: 1.8; color: #2c3e50; font-weight: 400;">{clean_caption}</p>
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+            st.success("✅ AI analysis completed successfully!")
+        else:
+            # Error state with clean message
+            st.error("❌ Unable to generate image description. Please try uploading a different image.")
 
-        # Caption analysis
+        # Backend diagnostics hidden for professional interface
+        # Uncomment below for debugging:
+        # with st.expander("🧪 Backend Diagnostics", expanded=False):
+        #     st.write(f"Backend Revision: `{backend_rev}`")
+        #     if "caption_debug" in result:
+        #         st.json(result["caption_debug"])
+
+        # Caption analysis - vertical layout to avoid nesting
         word_count = len(caption.split())
         char_count = len(caption)
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("📝 Words", word_count)
-        with col2:
-            st.metric("🔤 Characters", char_count)
-        with col3:
-            sentiment = (
-                "Positive"
-                if any(
-                    word in caption.lower()
-                    for word in ["beautiful", "nice", "good", "great"]
-                )
-                else "Neutral"
+        st.metric("📝 Words", word_count)
+        st.metric("🔤 Characters", char_count)
+        sentiment = (
+            "Positive"
+            if any(
+                word in caption.lower()
+                for word in ["beautiful", "nice", "good", "great"]
             )
-            st.metric("😊 Tone", sentiment)
+            else "Neutral"
+        )
+        st.metric("😊 Tone", sentiment)
 
     with tab2:
         st.markdown("#### 👁️ Extracted Text (OCR)")
@@ -510,17 +511,13 @@ def render_results_section():
                 unsafe_allow_html=True,
             )
 
-            # OCR analysis
+            # OCR analysis - vertical layout to avoid nesting
             lines = ocr_text.split("\n")
             words = ocr_text.split()
 
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("📄 Lines", len([line for line in lines if line.strip()]))
-            with col2:
-                st.metric("📝 Words", len(words))
-            with col3:
-                st.metric("🔤 Characters", len(ocr_text))
+            st.metric("📄 Lines", len([line for line in lines if line.strip()]))
+            st.metric("📝 Words", len(words))
+            st.metric("🔤 Characters", len(ocr_text))
 
             # Copy to clipboard button
             if st.button("📋 Copy Text to Clipboard"):
@@ -540,21 +537,17 @@ def render_results_section():
             "metadata": {"app_version": "2.0.0", "export_format": "json"},
         }
 
-        # Download options
-        col1, col2 = st.columns(2)
+        # Download options - vertical layout to avoid nesting
+        if st.download_button(
+            label="📥 Download JSON",
+            data=json.dumps(export_data, indent=2),
+            file_name=f"analysis_{timestamp.strftime('%Y%m%d_%H%M%S')}.json",
+            mime="application/json",
+        ):
+            st.success("File downloaded!")
 
-        with col1:
-            if st.download_button(
-                label="📥 Download JSON",
-                data=json.dumps(export_data, indent=2),
-                file_name=f"analysis_{timestamp.strftime('%Y%m%d_%H%M%S')}.json",
-                mime="application/json",
-            ):
-                st.success("File downloaded!")
-
-        with col2:
-            # Text format export
-            text_export = f"""
+        # Text format export
+        text_export = f"""
 # Multimodal Assistant Analysis Report
 Generated: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}
 File: {result.get('filename', 'Unknown')}
@@ -571,13 +564,13 @@ Prompt: {result.get('prompt', 'N/A')}
 - Analysis Quality: High
 """
 
-            if st.download_button(
-                label="📄 Download TXT",
-                data=text_export,
-                file_name=f"analysis_{timestamp.strftime('%Y%m%d_%H%M%S')}.txt",
-                mime="text/plain",
-            ):
-                st.success("File downloaded!")
+        if st.download_button(
+            label="📄 Download TXT",
+            data=text_export,
+            file_name=f"analysis_{timestamp.strftime('%Y%m%d_%H%M%S')}.txt",
+            mime="text/plain",
+        ):
+            st.success("File downloaded!")
 
 
 # ====================================
@@ -596,24 +589,20 @@ def main():
     render_header()
     render_sidebar()
 
-    # Main content area
-    col1, col2 = st.columns([1, 1])
+    # Main content area - no nested columns
+    image_bytes, filename = render_upload_section()
+    if image_bytes and filename:
+        render_analysis_section(image_bytes, filename)
 
-    with col1:
-        image_bytes, filename = render_upload_section()
-
-        if image_bytes and filename:
-            render_analysis_section(image_bytes, filename)
-
-    with col2:
-        render_results_section()
+    # Results section is always top-level (never nested)
+    render_results_section()
 
     # Footer
     st.markdown("---")
     st.markdown(
-        """
+        f"""
     <div style='text-align: center; padding: 1rem; color: #666;'>
-        <p>🚀 <strong>Multimodal Assistant v2.0</strong> |
+        <p>🚀 <strong>Multimodal Assistant v2.0</strong> (Frontend Rev: {FRONTEND_REVISION}) |
         Built with ❤️ by <a href='https://github.com/tushr23' target='_blank'>Tushr Verma</a></p>
         <p>🔬 <em>Powered by BLIP • Tesseract OCR • FastAPI • Streamlit</em></p>
     </div>

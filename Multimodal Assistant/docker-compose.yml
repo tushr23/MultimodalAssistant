@@ -1,0 +1,55 @@
+services    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFOackend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: multimodal-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+      - DEV_MODE=1
+      - BACKEND_FORCE_REV=2025-09-10-r5-fixed-blip
+    volumes:
+      - ./:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - multimodal-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: multimodal-frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://backend:8000/v1/vision
+      - PYTHONUNBUFFERED=1
+      - FRONTEND_FORCE_REV=2025-09-10-r1
+    volumes:
+      - ./frontend.py:/app/frontend.py
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - multimodal-network
+
+networks:
+  multimodal-network:
+    driver: bridge

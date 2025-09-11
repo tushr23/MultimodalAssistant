@@ -60,6 +60,7 @@ else:
 # Configuration
 BLIP_MODEL_NAME = "Salesforce/blip-image-captioning-base"
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+DEFAULT_FALLBACK_CAPTION = "A scene with various visual elements."
 ALLOWED_CONTENT_TYPES = {
     "image/jpeg",
     "image/png",
@@ -104,9 +105,23 @@ try:
         processor.decode.return_value = "A mocked image description"
         logger.info("BLIP model mocked for testing")
     else:  # pragma: no cover
-        processor = BlipProcessor.from_pretrained(BLIP_MODEL_NAME)
-        model = BlipForConditionalGeneration.from_pretrained(BLIP_MODEL_NAME)
-        logger.info("BLIP model loaded successfully")
+        # Set CPU-only mode for consistent CI/Docker behavior
+        import torch
+        torch.set_default_dtype(torch.float32)
+        # Force CPU usage to avoid CUDA issues in CI/Docker
+        device = "cpu"
+        logger.info(f"Using device: {device}")
+        
+        processor = BlipProcessor.from_pretrained(
+            BLIP_MODEL_NAME,
+            cache_dir="/tmp/huggingface_cache"
+        )
+        model = BlipForConditionalGeneration.from_pretrained(
+            BLIP_MODEL_NAME,
+            torch_dtype=torch.float32,
+            cache_dir="/tmp/huggingface_cache"
+        ).to(device)
+        logger.info("BLIP model loaded successfully on CPU")
 except Exception as e:  # pragma: no cover
     logger.error(f"Failed to load BLIP model: {e}")
     processor = None
@@ -266,13 +281,13 @@ async def vision_endpoint(
             caption = (
                 fallback_caption
                 if fallback_caption
-                else "A scene with various visual elements."
+                else DEFAULT_FALLBACK_CAPTION
             )
         except Exception:
-            caption = "A scene with various visual elements."
+            caption = DEFAULT_FALLBACK_CAPTION
 
     # Ensure we always have a valid caption
-    caption = caption.strip() or "A scene with various visual elements."
+    caption = caption.strip() or DEFAULT_FALLBACK_CAPTION
 
     processing_time = time.time() - start_time
     return JSONResponse(

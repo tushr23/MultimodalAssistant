@@ -1,5 +1,5 @@
 # Multi-stage build for production optimization
-FROM python:3.10-slim as builder
+FROM python:3.10-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -13,16 +13,18 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # Production stage
 FROM python:3.10-slim
 
-# Install runtime dependencies
+# Install runtime dependencies and clean up in single layer
 RUN apt-get update && apt-get install -y \
-    tesseract-ocr \
-    libtesseract-dev \
     curl \
+    libtesseract-dev \
+    tesseract-ocr \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Create non-root user for security
-RUN useradd --create-home --shell /bin/bash app
+# Create non-root user for security and cache directory
+RUN useradd --create-home --shell /bin/bash app \
+    && mkdir -p /tmp/huggingface_cache \
+    && chown -R app:app /tmp/huggingface_cache
 
 # Copy Python packages from builder
 COPY --from=builder /root/.local /home/app/.local

@@ -167,7 +167,9 @@ class TestFileValidation:
             data={"prompt": "test"},
         )
         assert response.status_code == 400
-        assert "Invalid image format" in response.json()["detail"]
+        response_data = response.json()
+        assert "error" in response_data
+        assert "Cannot identify image file format" in response_data["error"]
 
 
 class TestOCRProcessing:

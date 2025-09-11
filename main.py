@@ -19,7 +19,7 @@ from typing import Dict, Any
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 import os
 
 if os.getenv("TESTING_MODE") != "true":  # pragma: no cover
@@ -169,7 +169,13 @@ async def vision_endpoint(
     img_bytes = await image.read()
     if not img_bytes:
         raise HTTPException(status_code=400, detail="Empty image file")
-    img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+
+    try:
+        img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+    except UnidentifiedImageError:
+        return JSONResponse(
+            status_code=400, content={"error": "Cannot identify image file format"}
+        )
 
     # OCR processing
     try:
@@ -281,7 +287,7 @@ async def vision_endpoint(
     )
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     import uvicorn  # pragma: no cover
 
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")  # pragma: no cover

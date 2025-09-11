@@ -100,27 +100,58 @@ curl -X POST "http://localhost:8000/v1/vision" \
 }
 ```
 
-## 🧪 Testing
+## 🧪 Testing & Quality Assurance
 
 ```bash
-# Run comprehensive test suite
-python tests.py
+# Run comprehensive test suite (34 tests)
+python -m pytest test_main.py -v
 
-# Run with coverage analysis
-pytest tests.py -v --cov=main --cov-report=html
+# Run with coverage analysis (100% required)
+python -m pytest test_main.py --cov=main --cov-report=html --cov-fail-under=100
 
 # Test Docker setup
 docker compose up --build -d
 docker compose down
 ```
 
-**Test Features:**
-- ✅ 100% line coverage target
-- ✅ Exception path validation
-- ✅ Performance benchmarking
-- ✅ Security testing
-- ✅ Multi-format image support
-- ✅ OCR functionality validation
+**Test Coverage Breakdown:**
+- ✅ **Root Endpoints**: 2 tests (health checks, API info)
+- ✅ **Vision Processing**: 4 tests (image analysis, prompts)
+- ✅ **File Validation**: 5 tests (formats, sizes, corruption)
+- ✅ **OCR Processing**: 5 tests (text extraction, error handling)
+- ✅ **BLIP AI**: 9 tests (captioning, fallbacks, edge cases)
+- ✅ **Validation Functions**: 2 tests (input sanitization)
+- ✅ **Configuration**: 2 tests (app setup, constants)
+- ✅ **Extended Coverage**: 5 tests (edge cases, error paths)
+
+**Quality Metrics:**
+```
+Name      Stmts   Miss  Cover   Missing
+---------------------------------------
+main.py     129      0   100%
+---------------------------------------
+TOTAL       129      0   100%
+Required test coverage of 100% reached.
+```
+
+## 🛠️ Technology Stack
+
+**Backend Technologies**
+- **Framework**: FastAPI with async/await support
+- **AI Models**: BLIP (Salesforce/blip-image-captioning-base)
+- **OCR Engine**: Tesseract with multi-language support
+- **ML Framework**: PyTorch with optimization
+
+**Frontend & UI**
+- **Framework**: Streamlit with responsive design
+- **Interface**: Professional drag-and-drop upload
+- **Visualization**: Real-time progress and analytics
+
+**DevOps & Deployment**
+- **Containers**: Docker + Docker Compose orchestration
+- **CI/CD**: GitHub Actions with security scanning
+- **Testing**: Pytest with comprehensive mocking (100% coverage)
+- **Monitoring**: Health endpoints and performance metrics
 
 ## 🎯 Architecture
 
@@ -156,13 +187,31 @@ LOG_LEVEL=INFO                 # Logging level
 PYTHONUNBUFFERED=1            # Python output buffering
 ```
 
-## 📊 Performance
+## 📊 Performance & Production Status
 
+### **✅ Production-Ready Metrics**
+- **Test Coverage**: **100%** (129/129 statements)
+- **Test Suite**: **34 comprehensive test cases**
 - **Model Loading**: ~30 seconds (first run only)
 - **Image Processing**: 1-3 seconds average
 - **Memory Usage**: ~2GB for AI models
 - **Supported File Size**: Up to 10MB per image
 - **Concurrent Users**: 10+ simultaneous requests
+
+### **🚀 Production Features**
+- ✅ **Genuine AI Integration**: BLIP image captioning with PyTorch optimization
+- ✅ **Robust Error Handling**: Comprehensive exception handling for all failure modes
+- ✅ **Input Validation**: File type, size, and format validation
+- ✅ **OCR Integration**: Tesseract OCR with graceful fallbacks
+- ✅ **Performance Optimization**: `torch.no_grad()` for inference efficiency
+- ✅ **Clean Response Format**: Structured JSON responses with processing time
+
+### **🔧 CI/CD Pipeline**
+- ✅ **GitHub Actions**: Multi-Python version testing (3.10, 3.11, 3.12)
+- ✅ **Security Scanning**: Trivy vulnerability scanner integration
+- ✅ **Docker Integration**: Multi-stage builds with health checks
+- ✅ **Code Quality**: Black formatting and comprehensive linting
+- ✅ **Coverage Enforcement**: 100% coverage requirement in CI
 
 ## 🔒 Security
 

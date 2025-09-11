@@ -49,8 +49,10 @@ else:
             class NoGradContext:
                 def __enter__(self):
                     return self
+
                 def __exit__(self, *args):
                     pass
+
             return NoGradContext()
 
     torch = MockTorch()
@@ -61,15 +63,14 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 ALLOWED_CONTENT_TYPES = {
     "image/jpeg",
     "image/png",
-    "image/gif", 
+    "image/gif",
     "image/webp",
-    "image/bmp"
+    "image/bmp",
 }
 
 # Set up logging
 logging.basicConfig(
-    level=logging.INFO, 
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -119,11 +120,7 @@ async def root():
         "message": "Multimodal Assistant API is running",
         "version": "1.0.0",
         "status": "healthy",
-        "endpoints": {
-            "health": "/health",
-            "docs": "/docs",
-            "vision": "/v1/vision"
-        }
+        "endpoints": {"health": "/health", "docs": "/docs", "vision": "/v1/vision"},
     }
 
 
@@ -158,11 +155,13 @@ def validate_image(image: UploadFile) -> None:
 @app.post("/v1/vision", tags=["Vision"])
 async def vision_endpoint(
     image: UploadFile = File(..., description="Image file for analysis"),
-    prompt: str = Form("Describe this image", description="Question or instruction for the AI"),
+    prompt: str = Form(
+        "Describe this image", description="Question or instruction for the AI"
+    ),
 ) -> Dict[str, Any]:
     """Process image and return AI-generated caption and OCR text"""
     start_time = time.time()
-    
+
     # Validate & read image
     validate_image(image)
     if not prompt.strip():
@@ -190,10 +189,12 @@ async def vision_endpoint(
         # Generate caption with BLIP
         inputs = processor(img, return_tensors="pt")
         with torch.no_grad():
-            output = model.generate(**inputs, max_length=50, do_sample=False, early_stopping=True)
-        
+            output = model.generate(
+                **inputs, max_length=50, do_sample=False, early_stopping=True
+            )
+
         raw_caption = processor.decode(output[0], skip_special_tokens=True).strip()
-        
+
         # Clean common BLIP artifacts
         caption = raw_caption
         if caption.startswith("arafed"):
@@ -202,21 +203,33 @@ async def vision_endpoint(
             caption = caption[8:].strip()
         if caption.startswith("a picture of"):
             caption = caption[12:].strip()
-        
+
         # Ensure proper formatting
         if caption:
-            caption = caption[0].upper() + caption[1:] if len(caption) > 1 else caption.upper()
-            if not caption.endswith('.'):
-                caption += '.'
-        
+            caption = (
+                caption[0].upper() + caption[1:]
+                if len(caption) > 1
+                else caption.upper()
+            )
+            if not caption.endswith("."):
+                caption += "."
+
         # Enhanced response for detailed requests
         if "detail" in prompt.lower() and len(caption) > 0:
             try:
                 inputs = processor(img, return_tensors="pt")
                 with torch.no_grad():
-                    detailed_output = model.generate(**inputs, max_length=80, num_beams=5, do_sample=True, temperature=0.7)
-                detailed_caption = processor.decode(detailed_output[0], skip_special_tokens=True).strip()
-                
+                    detailed_output = model.generate(
+                        **inputs,
+                        max_length=80,
+                        num_beams=5,
+                        do_sample=True,
+                        temperature=0.7,
+                    )
+                detailed_caption = processor.decode(
+                    detailed_output[0], skip_special_tokens=True
+                ).strip()
+
                 # Use detailed caption if it's significantly better
                 if len(detailed_caption) > len(caption) * 1.3:
                     caption = detailed_caption
@@ -224,11 +237,11 @@ async def vision_endpoint(
                         caption = caption[6:].strip()
                     if caption and caption[0].islower():
                         caption = caption[0].upper() + caption[1:]
-                    if not caption.endswith('.'):
-                        caption += '.'
+                    if not caption.endswith("."):
+                        caption += "."
             except Exception:
                 pass  # Use original caption if detailed generation fails
-        
+
     except Exception as e:
         logger.error(f"BLIP processing failed: {e}")
         raise HTTPException(status_code=500, detail="Image processing failed")
@@ -239,27 +252,36 @@ async def vision_endpoint(
             inputs = processor(img, "a photo of", return_tensors="pt")
             with torch.no_grad():
                 output = model.generate(**inputs, max_length=50, num_beams=5)
-            fallback_caption = processor.decode(output[0], skip_special_tokens=True).strip()
+            fallback_caption = processor.decode(
+                output[0], skip_special_tokens=True
+            ).strip()
             if fallback_caption.startswith("a photo of"):
                 fallback_caption = fallback_caption[10:].strip()
-            caption = fallback_caption if fallback_caption else "A scene with various visual elements."
+            caption = (
+                fallback_caption
+                if fallback_caption
+                else "A scene with various visual elements."
+            )
         except Exception:
             caption = "A scene with various visual elements."
 
     # Ensure we always have a valid caption
     caption = caption.strip() or "A scene with various visual elements."
-    
+
     processing_time = time.time() - start_time
-    return JSONResponse({
-        "caption": caption,
-        "ocr_text": ocr_text,
-        "prompt": prompt,
-        "filename": image.filename or "unknown",
-        "status": "success",
-        "processing_time": round(processing_time, 3),
-    })
+    return JSONResponse(
+        {
+            "caption": caption,
+            "ocr_text": ocr_text,
+            "prompt": prompt,
+            "filename": image.filename or "unknown",
+            "status": "success",
+            "processing_time": round(processing_time, 3),
+        }
+    )
 
 
 if __name__ == "__main__":
     import uvicorn  # pragma: no cover
+
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

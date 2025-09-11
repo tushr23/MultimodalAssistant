@@ -310,9 +310,7 @@ def render_upload_section():
             image = Image.open(uploaded_file)
 
             # Display image without nested columns
-            st.image(
-                image, caption=f"📁 {uploaded_file.name}", use_column_width=True
-            )
+            st.image(image, caption=f"📁 {uploaded_file.name}", use_column_width=True)
 
             st.markdown("#### 📊 Image Details")
             display_image_info(image)
@@ -323,9 +321,7 @@ def render_upload_section():
                 contrast = st.slider("🌈 Contrast", 0.5, 2.0, 1.0, 0.1)
 
                 if abs(brightness - 1.0) > 0.01 or abs(contrast - 1.0) > 0.01:
-                    enhanced_image = ImageEnhance.Brightness(image).enhance(
-                        brightness
-                    )
+                    enhanced_image = ImageEnhance.Brightness(image).enhance(brightness)
                     enhanced_image = ImageEnhance.Contrast(enhanced_image).enhance(
                         contrast
                     )
@@ -450,15 +446,23 @@ def render_results_section():
         caption = result.get("caption", "No caption available")
 
         # Professional caption display
-        if caption and len(caption.strip()) > 0 and caption.strip() != "No caption available":
+        if (
+            caption
+            and len(caption.strip()) > 0
+            and caption.strip() != "No caption available"
+        ):
             # Clean caption display - remove technical prefixes for production
             clean_caption = caption
-            if clean_caption.startswith("[SIMPLE-") or clean_caption.startswith("[FALLBACK") or clean_caption.startswith("[ULTIMATE_GUARD"):
+            if (
+                clean_caption.startswith("[SIMPLE-")
+                or clean_caption.startswith("[FALLBACK")
+                or clean_caption.startswith("[ULTIMATE_GUARD")
+            ):
                 # Extract clean description from technical wrapper
                 bracket_end = clean_caption.find("]")
                 if bracket_end != -1:
-                    clean_caption = clean_caption[bracket_end + 1:].strip()
-            
+                    clean_caption = clean_caption[bracket_end + 1 :].strip()
+
             # Display the caption in a professional styled box
             st.markdown(
                 f"""
@@ -471,7 +475,9 @@ def render_results_section():
             st.success("✅ AI analysis completed successfully!")
         else:
             # Error state with clean message
-            st.error("❌ Unable to generate image description. Please try uploading a different image.")
+            st.error(
+                "❌ Unable to generate image description. Please try uploading a different image."
+            )
 
         # Backend diagnostics hidden for professional interface
         # Uncomment below for debugging:

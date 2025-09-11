@@ -246,14 +246,14 @@ class TestOCRProcessing:
 
 class TestBLIPProcessing:
     """Tests for BLIP model processing scenarios"""
-    
+
     @patch("main.model")
     @patch("main.processor")
     def test_blip_processing_error(self, mock_processor, mock_model):
         """Test BLIP processing failure handling"""
         mock_processor.side_effect = Exception("BLIP model error")
         test_image = create_test_image()
-        
+
         response = client.post(
             "/v1/vision",
             files={"image": ("test.jpg", test_image, "image/jpeg")},
@@ -261,39 +261,43 @@ class TestBLIPProcessing:
         )
         assert response.status_code == 500
         assert "Image processing failed" in response.json()["detail"]
-    
+
     @patch("main.model")
     @patch("main.processor")
-    def test_detailed_prompt_processing_with_longer_caption(self, mock_processor, mock_model):
+    def test_detailed_prompt_processing_with_longer_caption(
+        self, mock_processor, mock_model
+    ):
         """Test detailed processing when detailed caption is significantly longer"""
         # Mock the processor and model
         mock_inputs = {"pixel_values": "mock_tensor"}
         mock_processor.return_value = mock_inputs
-        
+
         # First call returns short caption, detailed call returns longer caption
         mock_model.generate.side_effect = [
             ["short_output"],  # First generation (regular)
-            ["much_longer_detailed_output_that_is_significantly_more_detailed"]  # Detailed generation
+            [
+                "much_longer_detailed_output_that_is_significantly_more_detailed"
+            ],  # Detailed generation
         ]
-        
+
         # Mock processor decode calls
         mock_processor.decode.side_effect = [
             "short caption",  # Regular caption
-            "much longer detailed caption that provides comprehensive description"  # Detailed caption
+            "much longer detailed caption that provides comprehensive description",  # Detailed caption
         ]
-        
+
         test_image = create_test_image()
-        
+
         response = client.post(
             "/v1/vision",
             files={"image": ("test.jpg", test_image, "image/jpeg")},
             data={"prompt": "give me detailed analysis"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "detailed" in data["caption"].lower() or len(data["caption"]) > 20
-    
+
     @patch("main.model")
     @patch("main.processor")
     def test_detailed_processing_exception_fallback(self, mock_processor, mock_model):
@@ -303,27 +307,27 @@ class TestBLIPProcessing:
         mock_processor.return_value = mock_inputs
         mock_model.generate.return_value = ["regular_output"]
         mock_processor.decode.return_value = "regular caption"
-        
+
         # Make detailed processing fail
         def side_effect_generate(**kwargs):
             if kwargs.get("num_beams"):  # Detailed generation call
                 raise Exception("Detailed generation failed")
             return ["regular_output"]
-        
+
         mock_model.generate.side_effect = side_effect_generate
-        
+
         test_image = create_test_image()
-        
+
         response = client.post(
             "/v1/vision",
             files={"image": ("test.jpg", test_image, "image/jpeg")},
             data={"prompt": "give me detailed analysis"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["caption"] == "Regular caption."
-    
+
     @patch("main.model")
     @patch("main.processor")
     def test_caption_cleaning_arafed_prefix(self, mock_processor, mock_model):
@@ -332,19 +336,19 @@ class TestBLIPProcessing:
         mock_processor.return_value = mock_inputs
         mock_model.generate.return_value = ["output_with_arafed"]
         mock_processor.decode.return_value = "arafed a beautiful landscape"
-        
+
         test_image = create_test_image()
-        
+
         response = client.post(
             "/v1/vision",
             files={"image": ("test.jpg", test_image, "image/jpeg")},
             data={"prompt": "test"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["caption"] == "A beautiful landscape."
-    
+
     @patch("main.model")
     @patch("main.processor")
     def test_caption_cleaning_there_is_prefix(self, mock_processor, mock_model):
@@ -353,40 +357,40 @@ class TestBLIPProcessing:
         mock_processor.return_value = mock_inputs
         mock_model.generate.return_value = ["output"]
         mock_processor.decode.return_value = "there is a beautiful sunset"
-        
+
         test_image = create_test_image()
-        
+
         response = client.post(
             "/v1/vision",
             files={"image": ("test.jpg", test_image, "image/jpeg")},
             data={"prompt": "test"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["caption"] == "A beautiful sunset."
-    
+
     @patch("main.model")
-    @patch("main.processor")  
+    @patch("main.processor")
     def test_caption_cleaning_a_picture_of_prefix(self, mock_processor, mock_model):
         """Test caption cleaning removes 'a picture of' prefix"""
         mock_inputs = {"pixel_values": "mock_tensor"}
         mock_processor.return_value = mock_inputs
         mock_model.generate.return_value = ["output"]
         mock_processor.decode.return_value = "a picture of a beautiful garden"
-        
+
         test_image = create_test_image()
-        
+
         response = client.post(
             "/v1/vision",
             files={"image": ("test.jpg", test_image, "image/jpeg")},
             data={"prompt": "test"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["caption"] == "A beautiful garden."
-    
+
     @patch("main.model")
     @patch("main.processor")
     def test_fallback_caption_generation(self, mock_processor, mock_model):
@@ -394,30 +398,30 @@ class TestBLIPProcessing:
         # Mock the processor and model for main processing (returns short caption)
         mock_inputs = {"pixel_values": "mock_tensor"}
         mock_processor.return_value = mock_inputs
-        
+
         # First call returns very short/empty caption, second call (fallback) returns proper caption
         mock_model.generate.side_effect = [
             ["short_output"],  # Main generation (too short)
-            ["fallback_output"]  # Fallback generation
+            ["fallback_output"],  # Fallback generation
         ]
-        
+
         mock_processor.decode.side_effect = [
             "x",  # Too short caption (< 3 chars)
-            "a photo of beautiful scenery"  # Fallback caption
+            "a photo of beautiful scenery",  # Fallback caption
         ]
-        
+
         test_image = create_test_image()
-        
+
         response = client.post(
             "/v1/vision",
             files={"image": ("test.jpg", test_image, "image/jpeg")},
             data={"prompt": "test"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["caption"] == "beautiful scenery"
-    
+
     @patch("main.model")
     @patch("main.processor")
     def test_fallback_caption_exception_handling(self, mock_processor, mock_model):
@@ -425,27 +429,27 @@ class TestBLIPProcessing:
         # Mock the processor and model for main processing
         mock_inputs = {"pixel_values": "mock_tensor"}
         mock_processor.return_value = mock_inputs
-        
+
         # First call returns empty caption, second call (fallback) throws exception
         mock_model.generate.side_effect = [
             ["short_output"],  # Main generation (empty)
-            Exception("Fallback generation failed")  # Fallback generation fails
+            Exception("Fallback generation failed"),  # Fallback generation fails
         ]
-        
+
         mock_processor.decode.return_value = ""  # Empty caption
-        
+
         test_image = create_test_image()
-        
+
         response = client.post(
             "/v1/vision",
             files={"image": ("test.jpg", test_image, "image/jpeg")},
             data={"prompt": "test"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["caption"] == "A scene with various visual elements."
-    
+
     @patch("main.model")
     @patch("main.processor")
     def test_single_character_caption_formatting(self, mock_processor, mock_model):
@@ -454,15 +458,15 @@ class TestBLIPProcessing:
         mock_processor.return_value = mock_inputs
         mock_model.generate.return_value = ["single_char_output"]
         mock_processor.decode.return_value = "a"
-        
+
         test_image = create_test_image()
-        
+
         response = client.post(
             "/v1/vision",
             files={"image": ("test.jpg", test_image, "image/jpeg")},
             data={"prompt": "test"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["caption"] == "a"
@@ -492,17 +496,19 @@ class TestValidationFunction:
 
 class TestApplicationConfiguration:
     """Tests for application configuration and setup"""
-    
+
     def test_app_configuration(self):
         """Test FastAPI application is properly configured"""
         from main import app
+
         assert app.title == "Multimodal Assistant API"
-        assert hasattr(app, 'routes')
+        assert hasattr(app, "routes")
         assert len(app.routes) > 0
-    
+
     def test_configuration_constants(self):
         """Test configuration constants are properly defined"""
         from main import MAX_FILE_SIZE, ALLOWED_CONTENT_TYPES
+
         assert MAX_FILE_SIZE == 10 * 1024 * 1024  # 10MB
         assert isinstance(ALLOWED_CONTENT_TYPES, set)
         assert "image/jpeg" in ALLOWED_CONTENT_TYPES
@@ -510,7 +516,7 @@ class TestApplicationConfiguration:
 
 class TestExtendedCoverage:
     """Additional tests to achieve 100% coverage"""
-    
+
     @patch("main.model", None)
     def test_health_check_with_model_error(self):
         """Test health check when model is None"""
@@ -518,22 +524,22 @@ class TestExtendedCoverage:
         assert response.status_code == 200
         data = response.json()
         assert data["services"]["blip_model"] == "error"
-    
+
     def test_validate_image_with_none_content_type(self):
         """Test validate_image with None content_type"""
         from main import validate_image
         import tempfile
-        
+
         # Create a mock file with None content_type
         mock_file = Mock()
         mock_file.content_type = None
         mock_file.filename = "test.jpg"
-        
+
         with pytest.raises(HTTPException) as exc_info:
             validate_image(mock_file)
         assert exc_info.value.status_code == 400
         assert "Unsupported file type" in exc_info.value.detail
-    
+
     @patch("main.model")
     @patch("main.processor")
     def test_vision_empty_caption_fallback_scenarios(self, mock_processor, mock_model):
@@ -541,86 +547,88 @@ class TestExtendedCoverage:
         # Test case 1: Empty caption from main processing, successful fallback
         mock_inputs = {"pixel_values": "mock_tensor"}
         mock_processor.return_value = mock_inputs
-        
+
         mock_model.generate.side_effect = [
             ["main_output"],  # Main generation (empty result)
-            ["fallback_output"]  # Fallback generation  
+            ["fallback_output"],  # Fallback generation
         ]
-        
+
         mock_processor.decode.side_effect = [
             "",  # Empty main caption
-            "a photo of nice view"  # Fallback caption
+            "a photo of nice view",  # Fallback caption
         ]
-        
+
         test_image = create_test_image()
-        
+
         response = client.post(
             "/v1/vision",
             files={"image": ("test.jpg", test_image, "image/jpeg")},
             data={"prompt": "test"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["caption"] == "nice view"
-    
+
     @patch("main.model")
     @patch("main.processor")
     def test_vision_final_fallback_default(self, mock_processor, mock_model):
         """Test final fallback to default caption"""
         mock_inputs = {"pixel_values": "mock_tensor"}
         mock_processor.return_value = mock_inputs
-        
+
         # Both main and fallback generation return empty
         mock_model.generate.side_effect = [
             ["main_output"],  # Main generation
-            ["fallback_output"]  # Fallback generation  
+            ["fallback_output"],  # Fallback generation
         ]
-        
+
         mock_processor.decode.side_effect = [
             "",  # Empty main caption
-            ""  # Empty fallback caption too
+            "",  # Empty fallback caption too
         ]
-        
+
         test_image = create_test_image()
-        
+
         response = client.post(
             "/v1/vision",
             files={"image": ("test.jpg", test_image, "image/jpeg")},
             data={"prompt": "test"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["caption"] == "A scene with various visual elements."
-    
+
     @patch("main.model")
     @patch("main.processor")
-    def test_detailed_caption_arafed_cleaning_and_capitalization(self, mock_processor, mock_model):
+    def test_detailed_caption_arafed_cleaning_and_capitalization(
+        self, mock_processor, mock_model
+    ):
         """Test detailed caption processing with arafed cleaning and capitalization"""
         mock_inputs = {"pixel_values": "mock_tensor"}
         mock_processor.return_value = mock_inputs
-        
+
         # First call returns short caption, detailed call returns longer caption with issues
         mock_model.generate.side_effect = [
             ["short_output"],  # First generation (regular)
-            ["detailed_output"]  # Detailed generation (much longer)
+            ["detailed_output"],  # Detailed generation (much longer)
         ]
-        
+
         # Mock processor decode calls - detailed caption has arafed prefix and starts lowercase
         mock_processor.decode.side_effect = [
             "short",  # Regular caption
-            "arafed beautiful landscape with mountains and trees"  # Detailed caption with issues
+            "arafed beautiful landscape with mountains and trees",  # Detailed caption with issues
         ]
-        
+
         test_image = create_test_image()
-        
+
         response = client.post(
             "/v1/vision",
             files={"image": ("test.jpg", test_image, "image/jpeg")},
             data={"prompt": "give me detailed description"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         # Should have cleaned "arafed" prefix and capitalized first letter
@@ -629,10 +637,12 @@ class TestExtendedCoverage:
 
 if __name__ == "__main__":
     # Run tests with coverage
-    pytest.main([
-        __file__,
-        "--cov=main",
-        "--cov-report=term-missing",
-        "--cov-fail-under=100",
-        "-v"
-    ])
+    pytest.main(
+        [
+            __file__,
+            "--cov=main",
+            "--cov-report=term-missing",
+            "--cov-fail-under=100",
+            "-v",
+        ]
+    )

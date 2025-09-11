@@ -10,14 +10,14 @@ import os
 # Set testing mode before importing main
 os.environ["TESTING_MODE"] = "true"
 
-import pytest
-import io
-from unittest.mock import patch, MagicMock, Mock
-from fastapi.testclient import TestClient
-from fastapi import HTTPException
-from PIL import Image
+import pytest  # noqa: E402
+import io  # noqa: E402
+from unittest.mock import patch, MagicMock, Mock  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from fastapi import HTTPException  # noqa: E402
+from PIL import Image  # noqa: E402
 
-import main
+import main  # noqa: E402
 
 client = TestClient(main.app)
 

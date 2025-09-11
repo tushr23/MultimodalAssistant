@@ -466,8 +466,10 @@ def render_results_section():
             # Display the caption in a professional styled box
             st.markdown(
                 f"""
-            <div style="background-color: #ffffff; padding: 2rem; border-radius: 12px; border: 1px solid #e1e5e9; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <p style="font-size: 1.2rem; margin: 0; line-height: 1.8; color: #2c3e50; font-weight: 400;">{clean_caption}</p>
+            <div style="background-color: #ffffff; padding: 2rem; border-radius: 12px; 
+                       border: 1px solid #e1e5e9; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <p style="font-size: 1.2rem; margin: 0; line-height: 1.8; 
+                         color: #2c3e50; font-weight: 400;">{clean_caption}</p>
             </div>
             """,
                 unsafe_allow_html=True,
